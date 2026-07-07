@@ -1,5 +1,6 @@
 import torch
 
+from attention_viz import maybe_save_candidate_heatmaps
 from model_setup import decode_completion
 from records import CandidateRecord, GenerationTrace
 from sink_metrics import add_candidate, normalize_candidate_scores
@@ -109,7 +110,12 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
         # baseline 轨迹才记录候选点。策略/branch 轨迹不重复记录，避免混入
         # “插入后新轨迹”的候选分布。
         if collect_candidates and prefix_ends_with_delimiter:
-            add_candidate(candidates, model, current_input_ids, current_attention_mask, outputs, logits, sample_idx, step, args)
+            candidate = add_candidate(
+                candidates, model, current_input_ids, current_attention_mask, outputs, logits, sample_idx, step, args
+            )
+            maybe_save_candidate_heatmaps(
+                candidate, model, current_input_ids, current_attention_mask, outputs, sample_idx, step, args
+            )
 
         # 这里复用项目原有的 greedy/sample 逻辑，保证和 MemGen.generate 取 token 一致。
         # next_token_ids: [B=1, 1]

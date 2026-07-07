@@ -44,6 +44,9 @@ def parse_args() -> argparse.Namespace:
                         choices=["no_memory", "prompt_only"])
     parser.add_argument("--run-strategy-rollouts", action="store_true",
                         help="Exploratory only: run multi-insertion strategy rollouts.")
+    parser.add_argument("--save-candidate-attention-heatmaps", action="store_true")
+    parser.add_argument("--max-heatmap-candidates-per-sample", type=int, default=20)
+    parser.add_argument("--heatmap-key-limit", type=int, default=160)
     parser.add_argument("--random-trials", type=int, default=3)
     parser.add_argument("--overwrite", action="store_true", help="Remove old result files in output-dir before running.")
     parser.add_argument("--options", nargs="+", default=None, help="Optional OmegaConf dotlist overrides.")

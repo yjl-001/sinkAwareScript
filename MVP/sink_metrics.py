@@ -88,8 +88,7 @@ def add_candidate(candidates, model, current_input_ids, current_attention_mask, 
     # current_attention_mask: [B=1, L_real_tokens + L_latents_so_far]
     # logits: [B=1, vocab_size]
     delimiter_id = int(current_input_ids[0, -1].item())
-    candidates.append(
-        CandidateRecord(
+    candidate = CandidateRecord(
             sample_idx=sample_idx,
             reference_mode=getattr(args, "current_reference_mode", "unknown"),
             reference_reward=float("nan"),
@@ -110,5 +109,6 @@ def add_candidate(candidates, model, current_input_ids, current_attention_mask, 
             sink_mass_z=0.0,
             entropy=entropy_from_logits(logits),
             entropy_z=0.0,
-        )
     )
+    candidates.append(candidate)
+    return candidate

@@ -17,6 +17,7 @@ generation code paths.
 - `model_setup.py`: KodCode dataset, MemGen loading, prompt encoding, reward.
 - `generation.py`: batch-size-1 forced-step generation and sink/entropy capture.
 - `sink_metrics.py`: SinkMass, entropy, candidate z-score normalization.
+- `attention_viz.py`: optional per-candidate attention heatmaps.
 - `strategies.py`: first-K, random, same-bucket random, sink-based selectors.
 - `candidate_selectors.py`: candidate-level random and same-bucket baselines.
 - `records.py`: output dataclasses.
@@ -71,6 +72,14 @@ python sinkAwareScript/MVP/run_kodcode_sink_mvp.py \
 
 Use a small `--limit` first. The counterfactual branches are expensive because
 each delimiter candidate can trigger an additional generation.
+
+To save per-candidate attention heatmaps, add:
+
+```bash
+--save-candidate-attention-heatmaps \
+--max-heatmap-candidates-per-sample 20 \
+--heatmap-key-limit 160
+```
 
 ## Outputs
 
