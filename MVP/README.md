@@ -77,9 +77,15 @@ To save per-candidate attention heatmaps, add:
 
 ```bash
 --save-candidate-attention-heatmaps \
---max-heatmap-candidates-per-sample 20 \
---heatmap-key-limit 160
+--max-heatmap-candidates-per-sample 0 \
+--heatmap-front-key-count 32 \
+--heatmap-tail-key-count 160
 ```
+
+`--max-heatmap-candidates-per-sample 0` saves every delimiter candidate on the
+baseline trajectory. Each `*_token_attention.png` keeps the earliest key
+positions, omits the long middle if needed, and keeps the latest key positions
+near the current candidate. The omitted span is shown as a white `...` column.
 
 ## Outputs
 

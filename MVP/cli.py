@@ -45,8 +45,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-strategy-rollouts", action="store_true",
                         help="Exploratory only: run multi-insertion strategy rollouts.")
     parser.add_argument("--save-candidate-attention-heatmaps", action="store_true")
-    parser.add_argument("--max-heatmap-candidates-per-sample", type=int, default=20)
-    parser.add_argument("--heatmap-key-limit", type=int, default=160)
+    parser.add_argument("--max-heatmap-candidates-per-sample", type=int, default=0,
+                        help="0 means save all baseline candidates.")
+    parser.add_argument("--heatmap-front-key-count", type=int, default=32,
+                        help="Number of earliest key positions kept on the heatmap x-axis.")
+    parser.add_argument("--heatmap-tail-key-count", type=int, default=160,
+                        help="Number of latest key positions kept after omitting the middle.")
     parser.add_argument("--random-trials", type=int, default=3)
     parser.add_argument("--overwrite", action="store_true", help="Remove old result files in output-dir before running.")
     parser.add_argument("--options", nargs="+", default=None, help="Optional OmegaConf dotlist overrides.")

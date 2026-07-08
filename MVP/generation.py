@@ -114,7 +114,8 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
                 candidates, model, current_input_ids, current_attention_mask, outputs, logits, sample_idx, step, args
             )
             maybe_save_candidate_heatmaps(
-                candidate, model, current_input_ids, current_attention_mask, outputs, sample_idx, step, args
+                candidate, model, current_input_ids, current_attention_mask,
+                outputs, sample_idx, step, prompt_ids.size(1), args
             )
 
         # 这里复用项目原有的 greedy/sample 逻辑，保证和 MemGen.generate 取 token 一致。
