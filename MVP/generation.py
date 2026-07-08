@@ -4,6 +4,7 @@ from attention_viz import maybe_save_candidate_heatmaps
 from model_setup import decode_completion
 from records import CandidateRecord, GenerationTrace
 from sink_metrics import add_candidate, normalize_candidate_scores
+from sink_event_viz import maybe_save_sink_event_heatmap
 
 
 def insert_latent(model, current_inputs_embeds, current_attention_mask, current_position_ids, *, is_prompt: bool):
@@ -107,6 +108,13 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
         )
         # outputs.logits: [B=1, L_query, vocab_size]；只取最后一个 query 的 next-token logits。
         logits = outputs.logits[:, -1]
+        # baseline 轨迹每一步都可以扫描强 sink 事件：当前 query token 如果
+        # 明显看向第一个 key，就额外保存一张热力图并记录当前 token 内容。
+        if collect_candidates:
+            maybe_save_sink_event_heatmap(
+                model, current_input_ids, current_attention_mask,
+                outputs, sample_idx, step, prompt_ids.size(1), args
+            )
         # baseline 轨迹才记录候选点。策略/branch 轨迹不重复记录，避免混入
         # “插入后新轨迹”的候选分布。
         if collect_candidates and prefix_ends_with_delimiter:

@@ -86,6 +86,23 @@ To save per-candidate attention heatmaps, add:
 baseline trajectory. Each `*_token_attention.png` keeps the earliest key
 positions, omits the long middle if needed, and keeps the latest key positions
 near the current candidate. The omitted span is shown as a white `...` column.
+The y-axis shows the original model layer indices selected by
+`--sink-layer-window`, not relative row numbers.
+
+To scan the whole baseline trajectory for strong sink events, add:
+
+```bash
+--save-sink-event-heatmaps \
+--sink-event-layer-window 4 \
+--sink-event-threshold 0.2 \
+--max-sink-event-heatmaps-per-sample 0
+```
+
+A sink event is triggered when the current query token's average attention to
+the first valid key position exceeds the threshold, averaged over the selected
+last layers and all heads. Event figures are written under
+`attention_heatmaps/<reference_mode>/sample_XXXX/sink_events/`, and
+`sink_events.jsonl` records the current token text, step, score, and image path.
 
 ## Outputs
 
@@ -98,6 +115,8 @@ The output directory contains:
   that were actually inserted during rollout.
 - `summary.json`: aggregate reward and counterfactual ranking metrics.
   Candidate metrics are split by reference mode under `candidate_by_reference`.
+- `sink_events.jsonl`: optional, one row per strong sink event when
+  `--save-sink-event-heatmaps` is enabled.
 
 ## Interpretation
 

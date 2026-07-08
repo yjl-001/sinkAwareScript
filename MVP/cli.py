@@ -51,6 +51,13 @@ def parse_args() -> argparse.Namespace:
                         help="Number of earliest key positions kept on the heatmap x-axis.")
     parser.add_argument("--heatmap-tail-key-count", type=int, default=160,
                         help="Number of latest key positions kept after omitting the middle.")
+    parser.add_argument("--save-sink-event-heatmaps", action="store_true",
+                        help="Save heatmaps when the current token strongly attends to the first key.")
+    parser.add_argument("--sink-event-layer-window", type=int, default=4,
+                        help="Last N layers used to detect strong sink events.")
+    parser.add_argument("--sink-event-threshold", type=float, default=0.2)
+    parser.add_argument("--max-sink-event-heatmaps-per-sample", type=int, default=0,
+                        help="0 means save all sink events above threshold.")
     parser.add_argument("--random-trials", type=int, default=3)
     parser.add_argument("--overwrite", action="store_true", help="Remove old result files in output-dir before running.")
     parser.add_argument("--options", nargs="+", default=None, help="Optional OmegaConf dotlist overrides.")

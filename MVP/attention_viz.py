@@ -37,7 +37,9 @@ def save_token_attention_heatmap(candidate, model, current_input_ids, current_at
     heat: [num_selected_layers, L_key_visible (+ optional gap column)]
     """
 
-    layers = select_layers(outputs.attentions, args.sink_layer_window)
+    # selected_layers: list[(layer_index, layer_attention)]，layer_index 是模型
+    # 原始层号；例如 28 层模型取最后 4 层时是 24,25,26,27。
+    selected_layers = select_layers(outputs.attentions, args.sink_layer_window)
     valid_positions = torch.nonzero(current_attention_mask[0] != 0, as_tuple=False).flatten()
     visible_positions, gap_after_front = choose_visible_positions(
         valid_positions, args.heatmap_front_key_count, args.heatmap_tail_key_count
@@ -46,7 +48,9 @@ def save_token_attention_heatmap(candidate, model, current_input_ids, current_at
         return
 
     rows = []
-    for layer_attn in layers:
+    layer_indices = []
+    for layer_index, layer_attn in selected_layers:
+        layer_indices.append(layer_index)
         # query_to_keys: [num_heads, L_key]，当前 candidate 的最后一个 query
         # 对所有历史 key position 的 attention。
         query_to_keys = layer_attn[0, :, -1, :].float()
@@ -71,11 +75,11 @@ def save_token_attention_heatmap(candidate, model, current_input_ids, current_at
         f"delimiter={candidate.delimiter_text!r}"
     )
     ax.set_xlabel("key token position")
-    ax.set_ylabel("selected layer")
+    ax.set_ylabel("model layer index")
     ax.set_xticks(range(len(labels)))
     ax.set_xticklabels(labels, rotation=90, fontsize=6)
-    ax.set_yticks(range(len(rows)))
-    ax.set_yticklabels([str(i) for i in range(len(rows))])
+    ax.set_yticks(range(len(layer_indices)))
+    ax.set_yticklabels([str(index) for index in layer_indices])
     fig.colorbar(image, ax=ax, fraction=0.025, pad=0.02)
     fig.tight_layout()
     fig.savefig(f"{prefix}_token_attention.png", dpi=180)
@@ -108,7 +112,15 @@ def add_gap_column(row: torch.Tensor, front_count: int) -> torch.Tensor:
 
 
 def select_layers(attentions, sink_layer_window: int):
-    return attentions[-sink_layer_window:] if sink_layer_window > 0 else attentions
+    """返回被选中的真实模型层号和对应 attention。
+
+    sink_layer_window=0 表示全部层；否则取最后 N 层。这里保留真实层号，
+    避免热力图 y 轴只显示 0,1,2 这种相对行号。
+    """
+
+    total_layers = len(attentions)
+    start = max(0, total_layers - sink_layer_window) if sink_layer_window > 0 else 0
+    return list(enumerate(attentions[start:], start=start))
 
 
 def token_labels(model, current_input_ids, positions, prompt_len: int, latent_count: int,

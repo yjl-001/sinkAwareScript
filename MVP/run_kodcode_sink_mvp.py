@@ -27,10 +27,11 @@ def prepare_output_paths(output_dir: Path) -> dict[str, Path]:
         "strategy": output_dir / "strategy_rows.jsonl",
         "summary": output_dir / "summary.json",
         "strategy_csv": output_dir / "strategy_rows.csv",
+        "sink_events": output_dir / "sink_events.jsonl",
     }
 
 
-def maybe_clear_outputs(paths: dict[str, Path], fig_dir: Path, overwrite: bool) -> None:
+def maybe_clear_outputs(paths: dict[str, Path], output_dir: Path, overwrite: bool) -> None:
     """避免复用 output-dir 时 JSONL/CSV 追加污染新实验。"""
 
     if not overwrite:
@@ -38,8 +39,10 @@ def maybe_clear_outputs(paths: dict[str, Path], fig_dir: Path, overwrite: bool) 
     for path in paths.values():
         if path.exists():
             path.unlink()
-    if fig_dir.exists():
-        shutil.rmtree(fig_dir)
+    for dir_name in ["figures", "attention_heatmaps"]:
+        path = output_dir / dir_name
+        if path.exists():
+            shutil.rmtree(path)
 
 
 def main() -> None:
@@ -47,8 +50,9 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     set_seed(args.seed)
 
-    paths = prepare_output_paths(Path(args.output_dir))
-    maybe_clear_outputs(paths, Path(args.output_dir) / "figures", args.overwrite)
+    output_dir = Path(args.output_dir)
+    paths = prepare_output_paths(output_dir)
+    maybe_clear_outputs(paths, output_dir, args.overwrite)
     config = apply_overrides(OmegaConf.load(args.cfg_path), args.options)
     config.dataset.mode = "sft"
     config.model.max_inference_aug_num = args.budget
