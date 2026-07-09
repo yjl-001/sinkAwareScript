@@ -176,3 +176,15 @@ python sinkAwareScript/MVP/visualize_results.py \
 ```
 
 This writes PNG figures and `report.md` under `<output-dir>/figures/`.
+
+To inspect which selected points each group actually used:
+
+```bash
+python sinkAwareScript/MVP/analyze_selected_points.py \
+  --output-dir output/sink_aware_mvp/qwen2_5_kodcode_sft_posfix_limit20
+```
+
+This writes `selected_point_report.md`, `selected_point_summary.json`, and
+figures under `<output-dir>/selected_point_figures/`. The most useful figures
+are `score_vs_utility_by_group.png`, `step_vs_utility_by_group.png`,
+`delimiter_fraction.png`, and `utility_by_group.png`.
