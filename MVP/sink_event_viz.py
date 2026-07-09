@@ -7,7 +7,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import torch
 
-from attention_viz import add_gap_column, choose_visible_positions, select_layers, token_labels
+from attention_viz import (
+    add_gap_column,
+    choose_visible_positions,
+    first_key_attention_score,
+    select_layers,
+    token_labels,
+)
 
 
 def maybe_save_sink_event_heatmap(model, current_input_ids, current_attention_mask,
@@ -37,31 +43,6 @@ def maybe_save_sink_event_heatmap(model, current_input_ids, current_attention_ma
         sample_idx, step, prompt_len, score, event_rank, args, prefix
     )
     append_sink_event_row(model, current_input_ids, sample_idx, step, prompt_len, score, event_rank, image_path, args)
-
-
-def first_key_attention_score(attentions, attention_mask, layer_window: int) -> float:
-    """计算当前 query 对第一个有效 key 的平均 attention。
-
-    返回的是 selected layers 和所有 heads 的平均值；这让阈值可以理解为
-    “最后 N 层总体上有多强地看向第一个 token”。
-    """
-
-    if not attentions:
-        return float("nan")
-    valid_positions = torch.nonzero(attention_mask[0] != 0, as_tuple=False).flatten()
-    if valid_positions.numel() == 0:
-        return float("nan")
-    first_key = int(valid_positions[0].item())
-
-    masses = []
-    for _, layer_attn in select_layers(attentions, layer_window):
-        # layer_attn: [B=1, num_heads, L_query, L_key]
-        query_to_keys = layer_attn[0, :, -1, :].float()
-        if first_key < query_to_keys.size(-1):
-            masses.append(query_to_keys[:, first_key].mean())
-    if not masses:
-        return float("nan")
-    return float(torch.stack(masses).mean().item())
 
 
 def save_sink_event_token_heatmap(model, current_input_ids, current_attention_mask, outputs,
