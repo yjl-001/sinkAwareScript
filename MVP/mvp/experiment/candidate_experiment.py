@@ -22,10 +22,21 @@ def run_reference(model, prompt_ids, prompt_mask, sample, sample_idx, experiment
         collect_candidates=True,
     )
     reference_reward = reward_completion(baseline.completion, sample)
-    candidates = baseline.candidates[: args.max_candidates_per_sample]
+    # 默认保留整条 reference 轨迹上的全部 delimiter candidates，让 top-k
+    # selector 真正从全体 candidate 中选。只有调试小样本耗时时，才显式设成
+    # 正数来截断候选池；注意这会改变 sink-top-k 的实验定义。
+    candidates = limit_candidates_for_debug(baseline.candidates, args.max_candidates_per_sample)
     for candidate in candidates:
         candidate.reference_reward = reference_reward
     return baseline, reference_reward, candidates
+
+
+def limit_candidates_for_debug(candidates, max_candidates: int):
+    """按需截断候选池；max_candidates<=0 表示不截断。"""
+
+    if max_candidates is None or max_candidates <= 0:
+        return candidates
+    return candidates[:max_candidates]
 
 
 def run_strategy_rollouts(model, prompt_ids, prompt_mask, sample, sample_idx, reference_mode,

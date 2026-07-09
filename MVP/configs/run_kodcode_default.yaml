@@ -15,7 +15,9 @@ attn_implementation: eager
 
 max_new_tokens: 256
 budget: 5
-max_candidates_per_sample: 20
+# 0 表示保留全部 delimiter candidates。设成正数只用于 debug，
+# 会改变 sink top-k 的候选池，因此正式实验不要截断。
+max_candidates_per_sample: 0
 temperature: 0.0
 do_sample: false
 

@@ -21,11 +21,11 @@ groups:
     budget: 5
     requires_delimiter: true
 
-  # 第三组：在整条 baseline 序列中找 first-key sink score 超过阈值的点。
-  # 这里允许非 delimiter 位置插入 latent，用来验证 sink event 本身是否有用。
-  - name: sequence_first_key_sink_threshold_0_5
+  # 第三组：在整条 baseline 序列中按 first-key sink score 取最高 K 个点。
+  # 这里允许非 delimiter 位置插入 latent；因为预算同为 5，能和前两组公平比较。
+  - name: sequence_first_key_sink_top5
     source: sequence
-    selector: threshold
+    selector: top_k
     score: first_key_attention
-    threshold: 0.5
+    budget: 5
     requires_delimiter: false

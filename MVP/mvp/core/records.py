@@ -83,8 +83,11 @@ class SelectedPointRecord:
     reference_mode: str
     group: str
     source: str
+    source_rank: int
     step: int
     rank_in_group: int
+    point_text: str
+    source_prefix_ends_with_delimiter: bool
     score_name: str
     score: float
     requires_delimiter: bool

@@ -41,13 +41,30 @@ def make_selected_row(point, group, rank: int, reference_mode: str,
         reference_mode=reference_mode,
         group=group.name,
         source=group.source,
+        source_rank=getattr(point, "candidate_rank", getattr(point, "point_rank", -1)),
         step=point.step,
         rank_in_group=rank,
+        point_text=point_text(point),
+        source_prefix_ends_with_delimiter=source_is_delimiter(point, group.source),
         score_name=group.score,
         score=score_of(point, group.score),
         requires_delimiter=bool(group.requires_delimiter),
         reference_reward=reference_reward,
     )
+
+
+def point_text(point) -> str:
+    """给 selected row 保存一点点上下文，方便人工审计插入附近。"""
+
+    return getattr(point, "delimiter_text", getattr(point, "token_text", ""))
+
+
+def source_is_delimiter(point, source: str) -> bool:
+    """记录原始点是否位于 delimiter 后；candidate source 天然为 True。"""
+
+    if source == "candidate":
+        return True
+    return bool(getattr(point, "prefix_ends_with_delimiter", False))
 
 
 def fill_branch_result(row: SelectedPointRecord, branch_cache, model, prompt_ids,

@@ -85,6 +85,10 @@ python sinkAwareScript/MVP/run_kodcode_sink_mvp.py \
 Use a small `--limit` first. The counterfactual branches are expensive because
 each selected point can trigger an additional generation.
 
+For the three-group comparison, keep `max_candidates_per_sample: 0` in
+`configs/run_kodcode_default.yaml`. A positive value is only for debugging and
+will truncate the candidate pool before sink top-k selection.
+
 Most parameters should be edited in YAML. For temporary one-off overrides, use
 `--set key=value`, for example:
 
@@ -101,7 +105,7 @@ heatmap_front_key_count: 32
 heatmap_tail_key_count: 160
 ```
 
-`--max-heatmap-candidates-per-sample 0` saves every delimiter candidate on the
+`max_heatmap_candidates_per_sample: 0` saves every delimiter candidate on the
 baseline trajectory. Each `*_token_attention.png` keeps the earliest key
 positions, omits the long middle if needed, and keeps the latest key positions
 near the current candidate. The omitted span is shown as a white `...` column.
