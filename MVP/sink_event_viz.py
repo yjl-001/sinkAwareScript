@@ -76,7 +76,9 @@ def save_sink_event_token_heatmap(model, current_input_ids, current_attention_ma
     fig, ax = plt.subplots(figsize=(max(8, len(labels) * 0.18), max(3, len(rows) * 0.35)))
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad(color="white")
-    image = ax.imshow(heat, aspect="auto", cmap=cmap)
+    # 与 candidate heatmap 使用同一个 0-1 颜色尺度，便于直接比较
+    # “这里很亮”到底是绝对 attention 高，还是只是单张图被动态拉伸了。
+    image = ax.imshow(heat, aspect="auto", cmap=cmap, vmin=0.0, vmax=1.0)
     ax.set_title(
         f"sink event sample={sample_idx} mode={args.current_reference_mode} "
         f"event={event_rank} step={step} score={score:.4f}\n"

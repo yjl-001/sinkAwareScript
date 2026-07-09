@@ -68,7 +68,10 @@ def save_token_attention_heatmap(candidate, model, current_input_ids, current_at
     fig, ax = plt.subplots(figsize=(max(8, len(labels) * 0.18), max(3, len(rows) * 0.35)))
     cmap = plt.get_cmap("viridis").copy()
     cmap.set_bad(color="white")
-    image = ax.imshow(heat, aspect="auto", cmap=cmap)
+    # Attention 本身就是概率分布上的权重，理论范围是 [0, 1]。
+    # 固定 vmin/vmax 后，不同 candidate 图片的颜色深浅才表示同一个绝对分数；
+    # 否则 Matplotlib 会按每张图自己的 min/max 动态缩放，横向比较会失真。
+    image = ax.imshow(heat, aspect="auto", cmap=cmap, vmin=0.0, vmax=1.0)
     first_key_score = first_key_attention_score(
         outputs.attentions, current_attention_mask, args.sink_event_layer_window
     )
