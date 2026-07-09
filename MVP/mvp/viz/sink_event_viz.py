@@ -7,10 +7,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import torch
 
-from attention_viz import (
+from mvp.metrics.sink_metrics import first_key_attention_score
+from mvp.viz.attention_viz import (
     add_gap_column,
     choose_visible_positions,
-    first_key_attention_score,
     select_layers,
     token_labels,
 )

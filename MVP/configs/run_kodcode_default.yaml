@@ -1,0 +1,29 @@
+# 主运行流程配置：数据、模型、生成、反事实评估相关参数放这里。
+cfg_path: configs/latent_memory/kodcode.yaml
+experiment_config: sinkAwareScript/MVP/configs/first_key_sink_three_groups.yaml
+viz_config: sinkAwareScript/MVP/configs/viz_default.yaml
+
+load_model_path: null
+output_dir: output/sink_aware_mvp/kodcode
+split: test
+limit: 20
+start_index: 0
+seed: 42
+device: auto
+torch_dtype: bfloat16
+attn_implementation: eager
+
+max_new_tokens: 256
+budget: 5
+max_candidates_per_sample: 20
+temperature: 0.0
+do_sample: false
+
+sink_key_count: 8
+sink_layer_window: 0
+random_trials: 3
+run_strategy_rollouts: false
+overwrite: false
+
+# 传给 MemGen 原始 config 的 OmegaConf dotlist 覆盖项。
+options: null

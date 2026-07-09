@@ -1,6 +1,6 @@
 import random
 
-from records import CandidateRecord
+from mvp.core.records import CandidateRecord
 
 
 def stable_seed(ref: str, sample_idx: int, trial_idx: int) -> int:

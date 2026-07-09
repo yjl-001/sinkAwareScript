@@ -1,0 +1,31 @@
+# 1 表示 reference 轨迹会先做 prompt latent augmentation；
+# 0 表示 reference 完全不插 prompt latent。不要同时跑两种模式，避免混淆。
+max_prompt_aug_num: 1
+
+# first_key_attention 的层窗口：4 表示最后 4 层；0 表示所有层。
+first_key_layer_window: 4
+
+groups:
+  # 第一组：MemGen 风格近似，只在 delimiter candidate 中取前 K 个点。
+  - name: candidate_first_k
+    source: candidate
+    selector: first_k
+    budget: 5
+    requires_delimiter: true
+
+  # 第二组：只在 delimiter candidate 中选 first-key sink score 最高的 K 个点。
+  - name: candidate_first_key_sink_top5
+    source: candidate
+    selector: top_k
+    score: first_key_attention
+    budget: 5
+    requires_delimiter: true
+
+  # 第三组：在整条 baseline 序列中找 first-key sink score 超过阈值的点。
+  # 这里允许非 delimiter 位置插入 latent，用来验证 sink event 本身是否有用。
+  - name: sequence_first_key_sink_threshold_0_5
+    source: sequence
+    selector: threshold
+    score: first_key_attention
+    threshold: 0.5
+    requires_delimiter: false

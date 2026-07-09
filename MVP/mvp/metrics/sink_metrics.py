@@ -2,7 +2,7 @@ import math
 
 import torch
 
-from records import CandidateRecord
+from mvp.core.records import CandidateRecord
 
 
 def entropy_from_logits(logits: torch.Tensor) -> float:
@@ -51,6 +51,34 @@ def sink_mass_from_attentions(attentions, attention_mask, *, sink_key_count: int
         # per-head 先对 sink keys 求和，再对 heads/layers 平均。
         masses.append(query_to_keys[:, usable_positions].sum(dim=-1).float().mean())
 
+    if not masses:
+        return float("nan")
+    return float(torch.stack(masses).mean().item())
+
+
+def first_key_attention_score(attentions, attention_mask, layer_window: int) -> float:
+    """计算当前 query 对第一个有效 key 的平均 attention。
+
+    分数定义:
+    1. 找到 attention_mask 中第一个有效 key position；
+    2. 在每一层取当前 query 对这个 key 的 attention；
+    3. 先对 heads 平均，再对最后 layer_window 层平均。
+    """
+
+    if not attentions:
+        return float("nan")
+    valid_positions = torch.nonzero(attention_mask[0] != 0, as_tuple=False).flatten()
+    if valid_positions.numel() == 0:
+        return float("nan")
+    first_key = int(valid_positions[0].item())
+
+    selected_layers = attentions[-layer_window:] if layer_window > 0 else attentions
+    masses = []
+    for layer_attn in selected_layers:
+        # layer_attn: [B=1, num_heads, L_query, L_key]
+        query_to_keys = layer_attn[0, :, -1, :].float()
+        if first_key < query_to_keys.size(-1):
+            masses.append(query_to_keys[:, first_key].mean())
     if not masses:
         return float("nan")
     return float(torch.stack(masses).mean().item())
@@ -107,6 +135,11 @@ def add_candidate(candidates, model, current_input_ids, current_attention_mask, 
                 sink_layer_window=args.sink_layer_window,
             ),
             sink_mass_z=0.0,
+            first_key_attention=first_key_attention_score(
+                outputs.attentions,
+                current_attention_mask,
+                args.first_key_layer_window,
+            ),
             entropy=entropy_from_logits(logits),
             entropy_z=0.0,
     )

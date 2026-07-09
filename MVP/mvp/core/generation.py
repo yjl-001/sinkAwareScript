@@ -1,10 +1,11 @@
 import torch
 
-from attention_viz import maybe_save_candidate_heatmaps
-from model_setup import decode_completion
-from records import CandidateRecord, GenerationTrace
-from sink_metrics import add_candidate, normalize_candidate_scores
-from sink_event_viz import maybe_save_sink_event_heatmap
+from mvp.core.model_setup import decode_completion
+from mvp.core.records import CandidateRecord, GenerationTrace, SequencePointRecord
+from mvp.experiment.sequence_points import maybe_add_sequence_point
+from mvp.metrics.sink_metrics import add_candidate, normalize_candidate_scores
+from mvp.viz.attention_viz import maybe_save_candidate_heatmaps
+from mvp.viz.sink_event_viz import maybe_save_sink_event_heatmap
 
 
 def insert_latent(model, current_inputs_embeds, current_attention_mask, current_position_ids, *, is_prompt: bool):
@@ -45,13 +46,16 @@ def insert_latent(model, current_inputs_embeds, current_attention_mask, current_
 
 @torch.no_grad()
 def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: int, forced_steps: set[int], args,
-                               prompt_augment: bool = True, collect_candidates: bool = False) -> GenerationTrace:
+                               prompt_augment: bool = True, collect_candidates: bool = False,
+                               forced_step_requires_delimiter: dict[int, bool] | None = None) -> GenerationTrace:
     """单样本生成循环，支持强制在指定 delimiter step 插入 latent。
 
     这是本 MVP 的核心：它不是训练用 generate，而是一个可控实验循环。
     - collect_candidates=True：prompt-only baseline，记录 delimiter 候选点和 SinkMass。
-    - forced_steps={j}：在候选点 j 做 single-insertion branch。
+    - forced_steps={j}：在某个 step 做 single-insertion branch。
     - forced_steps={j1,j2,...}：模拟 first-K/random/sink_top_b 等策略。
+    - forced_step_requires_delimiter 控制每个 forced step 是否必须位于 delimiter 后；
+      第三组全序列 sink 阈值实验会把它设为 False。
     """
 
     tokenizer = model.tokenizer
@@ -65,7 +69,9 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
     current_position_ids = model._generate_position_ids(current_attention_mask)
     current_cache = None
     candidates: list[CandidateRecord] = []
+    sequence_points: list[SequencePointRecord] = []
     forced_steps_used: list[int] = []
+    forced_step_requires_delimiter = forced_step_requires_delimiter or {}
 
     for step in range(args.max_new_tokens):
         # 只有“当前真实 token 前缀以 delimiter 结尾”时，inference latent 才允许插入。
@@ -74,7 +80,9 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
         prefix_ends_with_delimiter = (
             step > 0 and model._check_ends_with_delimiter(current_input_ids, tokenizer, model.delimiters).item()
         )
-        should_insert = (step == 0 and prompt_augment) or (step in forced_steps and prefix_ends_with_delimiter)
+        requires_delimiter = forced_step_requires_delimiter.get(step, True)
+        forced_insert = step in forced_steps and (prefix_ends_with_delimiter or not requires_delimiter)
+        should_insert = (step == 0 and prompt_augment) or forced_insert
         if should_insert:
             current_inputs_embeds, current_attention_mask, current_position_ids = insert_latent(
                 model, current_inputs_embeds, current_attention_mask, current_position_ids, is_prompt=(step == 0)
@@ -115,6 +123,10 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
                 model, current_input_ids, current_attention_mask,
                 outputs, sample_idx, step, prompt_ids.size(1), args
             )
+            maybe_add_sequence_point(
+                sequence_points, model, current_input_ids, current_attention_mask,
+                outputs, sample_idx, step, prefix_ends_with_delimiter, args
+            )
         # baseline 轨迹才记录候选点。策略/branch 轨迹不重复记录，避免混入
         # “插入后新轨迹”的候选分布。
         if collect_candidates and prefix_ends_with_delimiter:
@@ -153,10 +165,14 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
     for candidate in candidates:
         candidate.rel_pos = candidate.step / actual_generated_len
         candidate.pos_bucket = min(int(candidate.rel_pos * 4), 3)
+    for point in sequence_points:
+        point.rel_pos = point.step / actual_generated_len
+        point.pos_bucket = min(int(point.rel_pos * 4), 3)
     normalize_candidate_scores(candidates)
     return GenerationTrace(
         completion_ids=completion_ids,
         completion=decode_completion(model, completion_ids),
         candidates=candidates,
+        sequence_points=sequence_points,
         forced_steps_used=forced_steps_used,
     )

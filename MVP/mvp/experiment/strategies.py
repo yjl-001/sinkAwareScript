@@ -1,8 +1,8 @@
 import random
 from collections.abc import Iterable
 
-from candidate_selectors import select_random_candidates, select_same_bucket_random_candidates
-from records import CandidateRecord, StrategyRecord
+from mvp.core.records import CandidateRecord, StrategyRecord
+from mvp.experiment.candidate_selectors import select_random_candidates, select_same_bucket_random_candidates
 
 
 def top_sink_steps(candidates: list[CandidateRecord], budget: int, *, use_entropy: bool = False) -> list[int]:
@@ -183,4 +183,3 @@ def add_random_candidate_metrics(ref_summary: dict, ref_groups: list[list[Candid
         ref_summary["positive_precision_at_budget"][name] = (
             sum(precisions) / len(precisions) if precisions else None
         )
-

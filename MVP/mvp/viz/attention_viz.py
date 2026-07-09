@@ -6,6 +6,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import torch
 
+from mvp.metrics.sink_metrics import first_key_attention_score
+
 
 def maybe_save_candidate_heatmaps(candidate, model, current_input_ids, current_attention_mask,
                                   outputs, sample_idx: int, step: int, prompt_len: int, args) -> None:
@@ -72,14 +74,13 @@ def save_token_attention_heatmap(candidate, model, current_input_ids, current_at
     # 固定 vmin/vmax 后，不同 candidate 图片的颜色深浅才表示同一个绝对分数；
     # 否则 Matplotlib 会按每张图自己的 min/max 动态缩放，横向比较会失真。
     image = ax.imshow(heat, aspect="auto", cmap=cmap, vmin=0.0, vmax=1.0)
-    first_key_score = first_key_attention_score(
-        outputs.attentions, current_attention_mask, args.sink_event_layer_window
-    )
+    first_key_window = getattr(args, "first_key_layer_window", args.sink_event_layer_window)
+    first_key_score = first_key_attention_score(outputs.attentions, current_attention_mask, first_key_window)
     ax.set_title(
         f"sample={candidate.sample_idx} mode={candidate.reference_mode} "
         f"candidate={candidate.candidate_rank} step={candidate.step} "
         f"delimiter={candidate.delimiter_text!r}\n"
-        f"first_key_attn(last{args.sink_event_layer_window})={first_key_score:.4f}"
+        f"first_key_attn(last{first_key_window})={first_key_score:.4f}"
     )
     ax.set_xlabel("key token position")
     ax.set_ylabel("model layer index")
@@ -128,31 +129,6 @@ def select_layers(attentions, sink_layer_window: int):
     total_layers = len(attentions)
     start = max(0, total_layers - sink_layer_window) if sink_layer_window > 0 else 0
     return list(enumerate(attentions[start:], start=start))
-
-
-def first_key_attention_score(attentions, attention_mask, layer_window: int) -> float:
-    """计算当前 query 对第一个有效 key 的平均 attention。
-
-    这个分数用于 sink-event 检测，也显示在 candidate 热力图标题里。
-    它会先在单层内对所有 heads 求平均，再对 selected layers 求平均。
-    """
-
-    if not attentions:
-        return float("nan")
-    valid_positions = torch.nonzero(attention_mask[0] != 0, as_tuple=False).flatten()
-    if valid_positions.numel() == 0:
-        return float("nan")
-    first_key = int(valid_positions[0].item())
-
-    masses = []
-    for _, layer_attn in select_layers(attentions, layer_window):
-        # layer_attn: [B=1, num_heads, L_query, L_key]
-        query_to_keys = layer_attn[0, :, -1, :].float()
-        if first_key < query_to_keys.size(-1):
-            masses.append(query_to_keys[:, first_key].mean())
-    if not masses:
-        return float("nan")
-    return float(torch.stack(masses).mean().item())
 
 
 def token_labels(model, current_input_ids, positions, prompt_len: int, latent_count: int,

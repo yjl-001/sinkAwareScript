@@ -8,6 +8,8 @@ def load_json(path: Path) -> dict:
 
 def load_jsonl(path: Path) -> list[dict]:
     rows = []
+    if not path.exists():
+        return rows
     with path.open("r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()

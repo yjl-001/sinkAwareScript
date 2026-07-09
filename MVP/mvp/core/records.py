@@ -22,6 +22,10 @@ class CandidateRecord:
     delimiter_text: str
     sink_mass: float
     sink_mass_z: float
+    # first_key_attention 是“当前 query 对第一个有效 key/token 的 attention”，
+    # 通常按最后 N 层和所有 heads 平均。它和 sink_mass 不同：sink_mass 可以看
+    # 前多个 key，而这里严格只看第一个 key。
+    first_key_attention: float
     entropy: float
     entropy_z: float
     # branch_reward/utility 只在 single-insertion branch 中填充：
@@ -51,6 +55,60 @@ class StrategyRecord:
 
 
 @dataclass
+class SequencePointRecord:
+    """baseline 轨迹上每一个可观测 step 的 sink score。
+
+    和 CandidateRecord 不同，它不要求当前位置在 delimiter 后面，因此可以用于
+    “全序列 sink 阈值触发”这类实验。
+    """
+
+    sample_idx: int
+    reference_mode: str
+    point_rank: int
+    step: int
+    generated_so_far: int
+    rel_pos: float
+    pos_bucket: int
+    token_id: int
+    token_text: str
+    prefix_ends_with_delimiter: bool
+    first_key_attention: float
+
+
+@dataclass
+class SelectedPointRecord:
+    """某个实验组真正选择并评估的单点反事实结果。"""
+
+    sample_idx: int
+    reference_mode: str
+    group: str
+    source: str
+    step: int
+    rank_in_group: int
+    score_name: str
+    score: float
+    requires_delimiter: bool
+    reference_reward: float
+    branch_reward: float | None = None
+    utility: float | None = None
+    branch_forced_steps_used: list[int] | None = None
+    branch_inserted: bool | None = None
+
+
+@dataclass
+class GroupResultRecord:
+    """一个 sample 上一个实验组的聚合结果。"""
+
+    sample_idx: int
+    reference_mode: str
+    group: str
+    selected_count: int
+    inserted_count: int
+    avg_utility: float
+    positive_precision: float
+
+
+@dataclass
 class GenerationTrace:
     """一次生成的完整返回值。
 
@@ -61,4 +119,5 @@ class GenerationTrace:
     completion_ids: list[int]
     completion: str
     candidates: list[CandidateRecord]
+    sequence_points: list[SequencePointRecord]
     forced_steps_used: list[int]

@@ -1,0 +1,10 @@
+# 可视化与注意力热力图配置。主实验逻辑不应该散落这些参数。
+save_candidate_attention_heatmaps: false
+max_heatmap_candidates_per_sample: 0
+heatmap_front_key_count: 32
+heatmap_tail_key_count: 160
+
+save_sink_event_heatmaps: false
+sink_event_layer_window: 4
+sink_event_threshold: 0.2
+max_sink_event_heatmaps_per_sample: 0

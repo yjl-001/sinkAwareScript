@@ -4,7 +4,7 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Iterable
 
-from records import StrategyRecord
+from mvp.core.records import StrategyRecord
 
 
 def write_jsonl(path: Path, rows: Iterable[dict]) -> None:

@@ -2,8 +2,8 @@ import logging
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-import repo_paths  # noqa: F401
-from cli import torch_dtype, to_plain_dict
+from mvp.config.cli import torch_dtype, to_plain_dict
+from mvp.core import repo_paths  # noqa: F401
 from data import get_data_builder
 from data.kodcode.env import KodCodeEnv
 from memgen.model.configuration_memgen import MemGenConfig
