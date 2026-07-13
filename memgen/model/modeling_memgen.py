@@ -14,6 +14,10 @@ from transformers import (
 )
 from transformers.modeling_utils import PreTrainedModel
 
+from memgen.model.augmentation_strategy import (
+    WeaverInsertionStrategyConfig,
+    build_weaver_insertion_strategy,
+)
 from memgen.model.configuration_memgen import MemGenConfig
 from memgen.model.modeling_utils import (
     MemGenOutputWithPast,
@@ -85,6 +89,16 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         # 训练/生成都只在这些“句子边界感较强”的位置考虑插 latent。
         self.delimiters: list[str] = [",", ".", "\n"]
 
+        # Weaver 训练插点由独立策略层控制。Trigger/generation 仍沿用原来的在线路径，
+        # 因此切换训练策略不会暗中改变 Trigger 的 action space。
+        self.weaver_insertion_strategy = build_weaver_insertion_strategy(
+            config.weaver_insertion_strategy
+        )
+        logging.info(
+            "Weaver insertion strategy: %s",
+            self.weaver_insertion_strategy.config.to_dict(),
+        )
+
         # forward 第一次看到数据时决定是 single-turn 还是 conversation。
         # 后续 batch 复用这个状态，避免每次重新推断。
         self.state = None
@@ -151,8 +165,8 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
 
         # select augment idx.
         # augmentation_indices 存的是“在原始 token 序列的哪个 index 前插入 latent”。
-        # 第一个点一定是 prompt augmentation；后续点是 inference augmentation。
-        augmentation_indices = self._select_augment_points_after_delimiter(
+        # 第一个点一定是 prompt augmentation；后续点由配置的 Weaver 策略层选择。
+        augmentation_indices = self._select_weaver_augmentation_points(
             input_ids, attention_mask, labels, delimiters, tokenizer, max_augment_num
         )
 
@@ -734,6 +748,9 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
         inference_latents_len = weaver_config.get("inference_latents_len", 8)
         weaver_lora_config_dict = weaver_config.get("lora_config", None) # weaver LoRA 配置
         weaver_model_name = weaver_config.get("model_name", None) # weaver LoRA 的底座
+        weaver_insertion_strategy = WeaverInsertionStrategyConfig.from_mapping(
+            weaver_config.get("insertion_strategy", None)
+        )
 
         # trigger configs
         trigger_config = config_dict.get("trigger", {})
@@ -755,6 +772,8 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             memgen_config.max_prompt_aug_num = max_prompt_aug_num
             memgen_config.max_inference_aug_num = max_inference_aug_num
             memgen_config.trigger_active = trigger_active
+            # 插入策略是训练/实验期配置，不由 checkpoint 锁死，便于继续训练时切换分布。
+            memgen_config.weaver_insertion_strategy = weaver_insertion_strategy.to_dict()
             logging.info(
                 "Checkpoint latent lengths: prompt=%s inference=%s",
                 memgen_config.prompt_latents_len,
@@ -768,6 +787,7 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
                 max_inference_aug_num=max_inference_aug_num,
                 prompt_latents_len=prompt_latents_len,
                 inference_latents_len=inference_latents_len,
+                weaver_insertion_strategy=weaver_insertion_strategy.to_dict(),
                 weaver_lora_config=weaver_lora_config_dict,
                 trigger_active=trigger_active,
                 trigger_lora_config=trigger_lora_config_dict,
@@ -780,7 +800,18 @@ class MemGenModel(PreTrainedModel, MemGenLoraSwitchMixin, MemGenGenerationMixin)
             "torch_dtype": torch.bfloat16,
             "attn_implementation": attn_implementation,
         }
-        reasoner_base_model = AutoModelForCausalLM.from_pretrained(model_name, **load_kwargs)
+        reasoner_load_kwargs = dict(load_kwargs)
+        if weaver_insertion_strategy.requires_sink_scores:
+            # first-key attention 需要显式 attention tensor；FlashAttention 不返回该张量。
+            # 只把冻结 reasoner 切到 eager，Weaver/Trigger 仍可保留配置的高效后端。
+            reasoner_load_kwargs["attn_implementation"] = "eager"
+            logging.info(
+                "Sink-aware Weaver strategy enabled; loading reasoner with eager attention"
+            )
+        reasoner_base_model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            **reasoner_load_kwargs,
+        )
         weaver_base_model = AutoModelForCausalLM.from_pretrained(weaver_model_name, **load_kwargs)
         trigger_base_model = AutoModelForCausalLM.from_pretrained(trigger_model_name, **load_kwargs)
 

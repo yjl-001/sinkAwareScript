@@ -117,7 +117,7 @@ class WeaverGRPOTrainer(GRPOTrainer):
         返回的 mask 用来过滤掉 completion 中不应学习的位置，例如 tool/info token
         或 conversation 模板中的 assistant header。
         """
-        # `_select_augment_points_after_delimiter` 为每次 forward 返回一条轨迹的插点。
+        # Weaver 插点策略为每次 forward 返回一条轨迹的插点。
         # rollout 可以批量生成，但 policy logprob 必须逐轨迹重算，否则不同 completion
         # 的 delimiter 会在 batch 维上合并，导致未命中 delimiter 的轨迹也插入 latent。
         batch_size = batch_size or 1

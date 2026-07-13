@@ -18,6 +18,9 @@ set -e
 #   SKIP_TRIGGER     - 设为 1 跳过 Trigger GRPO
 #   SKIP_EVAL        - 设为 1 跳过评测
 #   LOAD_MODEL_PATH  - 从已有 checkpoint 恢复训练 (覆盖相应阶段的从零开始)
+#   WEAVER_INSERTION_STRATEGY - first_k/candidate_sink_threshold/sequence_sink_threshold
+#   WEAVER_SINK_SCORE_THRESHOLD - sink 策略阈值 (默认 0.3)
+#   WEAVER_SINK_SCORE_LAYER_WINDOW - sink score 使用的最后层数，0 表示全部层
 #
 # 可选 batch size 覆盖 (均为 per_device 值，总有效 batch = per_device × GPU数 × grad_accum):
 #   SFT_BATCH_SIZE          - Weaver SFT per_device batch (默认 1)
@@ -57,8 +60,12 @@ echo "[pipeline] 数据集: ${DATASET_NAME}"
 # 只使用这一份值，保证后续阶段加载 checkpoint 时张量形状保持一致。
 PROMPT_LATENTS_LEN=${PROMPT_LATENTS_LEN:-8}
 INFERENCE_LATENTS_LEN=${INFERENCE_LATENTS_LEN:-8}
+WEAVER_INSERTION_STRATEGY=${WEAVER_INSERTION_STRATEGY:-first_k}
+WEAVER_SINK_SCORE_THRESHOLD=${WEAVER_SINK_SCORE_THRESHOLD:-0.3}
+WEAVER_SINK_SCORE_LAYER_WINDOW=${WEAVER_SINK_SCORE_LAYER_WINDOW:-4}
 
 echo "[pipeline] 增强参数: PN=${MAX_PROMPT_AUG_NUM} IN=${MAX_INFERENCE_AUG_NUM} PL=${PROMPT_LATENTS_LEN} IL=${INFERENCE_LATENTS_LEN}"
+echo "[pipeline] Weaver 插点策略: ${WEAVER_INSERTION_STRATEGY} threshold=${WEAVER_SINK_SCORE_THRESHOLD} layers=${WEAVER_SINK_SCORE_LAYER_WINDOW}"
 
 # ===== Batch size 配置 =====
 # 以下均为 per_device 值 (单卡)，总有效 batch = per_device × GPU数 × grad_accum
@@ -112,6 +119,11 @@ SKIP_GRPO=${SKIP_GRPO:-0}
 SKIP_TRIGGER=${SKIP_TRIGGER:-0}
 SKIP_EVAL=${SKIP_EVAL:-0}
 
+if [ "${WEAVER_INSERTION_STRATEGY}" != "first_k" ] && [ "${SKIP_GRPO}" != "1" ]; then
+    echo "[pipeline] 错误: sink-aware Weaver 插点目前只支持 SFT，请设置 SKIP_GRPO=1" >&2
+    exit 1
+fi
+
 # 如果提供 LOAD_MODEL_PATH，则跳过之前的阶段
 if [ -n "${LOAD_MODEL_PATH}" ]; then
     echo "[pipeline] 从已有 checkpoint 恢复: ${LOAD_MODEL_PATH}"
@@ -155,6 +167,9 @@ else
         model.weaver.model_name ${WEAVER_MODEL} \
         model.weaver.prompt_latents_len ${PROMPT_LATENTS_LEN} \
         model.weaver.inference_latents_len ${INFERENCE_LATENTS_LEN} \
+        model.weaver.insertion_strategy.name ${WEAVER_INSERTION_STRATEGY} \
+        model.weaver.insertion_strategy.sink_score_threshold ${WEAVER_SINK_SCORE_THRESHOLD} \
+        model.weaver.insertion_strategy.sink_score_layer_window ${WEAVER_SINK_SCORE_LAYER_WINDOW} \
         model.trigger.model_name ${TRIGGER_MODEL} \
         model.trigger.active False \
         dataset.mode sft \
@@ -215,6 +230,9 @@ else
         model.weaver.model_name ${WEAVER_MODEL} \
         model.weaver.prompt_latents_len ${PROMPT_LATENTS_LEN} \
         model.weaver.inference_latents_len ${INFERENCE_LATENTS_LEN} \
+        model.weaver.insertion_strategy.name ${WEAVER_INSERTION_STRATEGY} \
+        model.weaver.insertion_strategy.sink_score_threshold ${WEAVER_SINK_SCORE_THRESHOLD} \
+        model.weaver.insertion_strategy.sink_score_layer_window ${WEAVER_SINK_SCORE_LAYER_WINDOW} \
         model.trigger.model_name ${TRIGGER_MODEL} \
         model.trigger.active False \
         dataset.mode grpo \

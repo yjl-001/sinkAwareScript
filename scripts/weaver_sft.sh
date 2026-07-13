@@ -37,6 +37,10 @@ TRAIN_METHOD="sft"    # options: sft or grpo
 # - For triviaqa:             MAX_PROMPT_AUG_NUM=6, MAX_INFERENCE_AUG_NUM=0
 PROMPT_LATENTS_LEN=${PROMPT_LATENTS_LEN:-8}
 INFERENCE_LATENTS_LEN=${INFERENCE_LATENTS_LEN:-8}
+# first_k / candidate_sink_threshold / sequence_sink_threshold
+WEAVER_INSERTION_STRATEGY=${WEAVER_INSERTION_STRATEGY:-first_k}
+WEAVER_SINK_SCORE_THRESHOLD=${WEAVER_SINK_SCORE_THRESHOLD:-0.3}
+WEAVER_SINK_SCORE_LAYER_WINDOW=${WEAVER_SINK_SCORE_LAYER_WINDOW:-4}
 
 BATCH_SIZE=${BATCH_SIZE:-1}
 if [ "${BATCH_SIZE}" -ne 1 ]; then
@@ -65,6 +69,9 @@ run_accelerate \
     model.weaver.model_name ${WEAVER_MODEL} \
     model.weaver.prompt_latents_len ${PROMPT_LATENTS_LEN} \
     model.weaver.inference_latents_len ${INFERENCE_LATENTS_LEN} \
+    model.weaver.insertion_strategy.name ${WEAVER_INSERTION_STRATEGY} \
+    model.weaver.insertion_strategy.sink_score_threshold ${WEAVER_SINK_SCORE_THRESHOLD} \
+    model.weaver.insertion_strategy.sink_score_layer_window ${WEAVER_SINK_SCORE_LAYER_WINDOW} \
     model.trigger.model_name ${TRIGGER_MODEL} \
     model.trigger.active False \
     dataset.mode ${TRAIN_METHOD} \

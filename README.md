@@ -47,6 +47,38 @@ bash scripts/weaver_sft.sh
 Weaver SFT 的 `per_device_train_batch_size` 必须为 1。当前训练期插点选择是逐样本逻辑，
 配置和脚本都会阻止更大的本卡 batch；多卡仍可正常使用，每卡各处理一条样本。
 
+### Weaver 训练插点策略
+
+`model.weaver.insertion_strategy.name` 支持三种策略：
+
+| 策略 | inference latent 插点集合 |
+|---|---|
+| `first_k` | 当前基线，按时间顺序选择前 K 个 delimiter 后位置 |
+| `candidate_sink_threshold` | 只在 delimiter 后位置中选择 `sink_score > threshold` 的点 |
+| `sequence_sink_threshold` | 在 completion 的所有连续监督 token 边界中选择 `sink_score > threshold` 的点 |
+
+三种策略都固定保留 prompt 边界的一次插入，并把 `model.max_inference_aug_num` 作为 inference
+硬预算。sink 策略超过预算时选择分数最高的 K 个点，再按原始位置顺序插入。这里的 sink
+score 与 MVP 热力图一致：query `i-1` 对第一个有效 key 的 attention，先平均 heads，再平均
+最后 N 层。分数来自未插 latent 的 teacher-forced reasoner 序列，不使用 Trigger。
+
+例如训练 candidate sink Weaver：
+
+```bash
+CUDA_VISIBLE_DEVICES=0,1 DATASET_NAME=kodcode \
+WEAVER_INSERTION_STRATEGY=candidate_sink_threshold \
+WEAVER_SINK_SCORE_THRESHOLD=0.34 \
+WEAVER_SINK_SCORE_LAYER_WINDOW=4 \
+bash scripts/weaver_sft.sh
+```
+
+全序列策略只需把策略名改为 `sequence_sink_threshold`。sink 分数依赖序列长度和数据分布，
+`0.3` 只是配置占位值，应先用目标数据校准阈值。启用 sink 策略时，代码会自动让冻结
+reasoner 使用 `eager` attention 以取得权重；Weaver/Trigger 仍使用 `ATTN_IMPLEMENTATION`。
+当前策略层只控制 Weaver SFT 的 teacher-forced 训练前向，不改变 Trigger 或在线生成决策。
+Sink-aware Weaver GRPO 会被配置层明确拒绝，因为它还需要让 rollout generation 与
+logprob 重算使用同一插点策略；直接复用当前生成路径会造成错误的 off-policy 训练。
+
 Weaver GRPO：
 
 ```bash
@@ -97,6 +129,7 @@ DATASET_NAME=triviaqa SKIP_TRIGGER=1 bash scripts/pipeline.sh
 - `configs/latent_memory/*.yaml`：四套数据、模型、SFT/GRPO 和 interaction 配置。
 - `model.max_prompt_aug_num` / `model.max_inference_aug_num`：两类插入预算。
 - `model.weaver.*_latents_len`：新训练时的 latent 长度。
+- `model.weaver.insertion_strategy.*`：Weaver 训练插点策略、sink 阈值和 attention 层窗口。
 - `run.interaction.*_do_sample`：评测/交互采样开关。
 - `.cache/train|evaluate/...`：按数据集、模型和 latent 条件生成的运行目录。
 

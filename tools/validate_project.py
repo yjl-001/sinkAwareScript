@@ -67,6 +67,7 @@ def validate_training_contracts() -> None:
     config = (ROOT / "common/config.py").read_text(encoding="utf-8")
     require("per_device_train_batch_size=1" in config, "missing Weaver SFT batch alignment guard")
     require("Trigger GRPO for TriviaQA is not implemented" in config, "missing TriviaQA Trigger guard")
+    require("Sink-aware Weaver insertion strategies currently support SFT only" in config, "missing sink GRPO parity guard")
 
     weaver_trainer = (ROOT / "memgen/trainer/weaver_grpo_trainer.py").read_text(encoding="utf-8")
     require("batch_size = batch_size or 1" in weaver_trainer, "Weaver GRPO logprob is not per trajectory")
@@ -95,6 +96,20 @@ def validate_training_contracts() -> None:
     model = (ROOT / "memgen/model/modeling_memgen.py").read_text(encoding="utf-8")
     require("MemGenConfig.from_pretrained(load_model_path)" in model, "checkpoint config is not authoritative")
     require("finished_mask" in model, "batched generation does not isolate finished sequences")
+    require("_select_weaver_augmentation_points" in model, "Weaver strategy layer is not used")
+    require('reasoner_load_kwargs["attn_implementation"] = "eager"' in model, "sink scoring cannot return attentions")
+
+    strategy = (ROOT / "memgen/model/augmentation_strategy.py").read_text(encoding="utf-8")
+    for name in ("first_k", "candidate_sink_threshold", "sequence_sink_threshold"):
+        require(name in strategy, f"missing Weaver insertion strategy: {name}")
+
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools/test_insertion_strategies.py")],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    require(result.returncode == 0, result.stderr or "insertion strategy tests failed")
 
 
 def validate_mvp_paths() -> None:

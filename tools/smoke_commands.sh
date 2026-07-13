@@ -27,6 +27,7 @@ for dataset in gsm8k gpqa kodcode triviaqa; do
     sft_output=$(MEMGEN_DRY_RUN=1 DATASET_NAME="${dataset}" bash scripts/weaver_sft.sh)
     assert_contains "${sft_output}" "dataset.mode sft"
     assert_contains "${sft_output}" "run.weaver.sft.per_device_train_batch_size 1"
+    assert_contains "${sft_output}" "model.weaver.insertion_strategy.name first_k"
     assert_contains "${sft_output}" "--num_processes=1"
     assert_not_contains "${sft_output}" "--num_processes= 1"
 
@@ -37,6 +38,15 @@ for dataset in gsm8k gpqa kodcode triviaqa; do
     eval_output=$(MEMGEN_DRY_RUN=1 DATASET_NAME="${dataset}" LOAD_MODEL_PATH=/tmp/fake bash scripts/eval.sh)
     assert_contains "${eval_output}" "run.mode evaluate"
 done
+
+sink_sft_output=$(MEMGEN_DRY_RUN=1 DATASET_NAME=kodcode \
+    WEAVER_INSERTION_STRATEGY=candidate_sink_threshold \
+    WEAVER_SINK_SCORE_THRESHOLD=0.34 \
+    WEAVER_SINK_SCORE_LAYER_WINDOW=6 \
+    bash scripts/weaver_sft.sh)
+assert_contains "${sink_sft_output}" "model.weaver.insertion_strategy.name candidate_sink_threshold"
+assert_contains "${sink_sft_output}" "model.weaver.insertion_strategy.sink_score_threshold 0.34"
+assert_contains "${sink_sft_output}" "model.weaver.insertion_strategy.sink_score_layer_window 6"
 
 trivia_output=$(MEMGEN_DRY_RUN=1 DATASET_NAME=triviaqa bash scripts/weaver_sft.sh)
 assert_contains "${trivia_output}" "model.max_prompt_aug_num 8"
@@ -69,6 +79,12 @@ fi
 
 if MEMGEN_DRY_RUN=1 GRPO_BATCH_SIZE=3 NUM_GENERATIONS=8 bash scripts/weaver_grpo.sh >/dev/null 2>&1; then
     echo "[failed] invalid GRPO grouping should be rejected" >&2
+    exit 1
+fi
+
+if MEMGEN_DRY_RUN=1 WEAVER_INSERTION_STRATEGY=candidate_sink_threshold \
+    bash scripts/weaver_grpo.sh >/dev/null 2>&1; then
+    echo "[failed] sink-aware Weaver GRPO should be rejected until rollout parity exists" >&2
     exit 1
 fi
 

@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 from pathlib import Path
 
 from omegaconf import OmegaConf
@@ -116,6 +117,23 @@ class Config:
         }:
             raise ValueError("model.attn_implementation must be flash_attention_2, sdpa, or eager")
 
+        insertion_strategy = model.weaver.get("insertion_strategy", {})
+        insertion_strategy_name = str(insertion_strategy.get("name", "first_k"))
+        supported_insertion_strategies = {
+            "first_k", "candidate_sink_threshold", "sequence_sink_threshold"
+        }
+        if insertion_strategy_name not in supported_insertion_strategies:
+            raise ValueError(
+                f"Unsupported Weaver insertion strategy: {insertion_strategy_name}"
+            )
+        sink_threshold = float(insertion_strategy.get("sink_score_threshold", 0.0))
+        if not math.isfinite(sink_threshold):
+            raise ValueError("model.weaver.insertion_strategy.sink_score_threshold must be finite")
+        if int(insertion_strategy.get("sink_score_layer_window", 4)) < 0:
+            raise ValueError(
+                "model.weaver.insertion_strategy.sink_score_layer_window must be >= 0"
+            )
+
         if run.mode != "train":
             return
 
@@ -142,6 +160,12 @@ class Config:
                 )
             if method == "grpo" and float(run.weaver.grpo.temperature) <= 0:
                 raise ValueError("Weaver GRPO sampling temperature must be positive")
+            if method == "grpo" and insertion_strategy_name != "first_k":
+                raise NotImplementedError(
+                    "Sink-aware Weaver insertion strategies currently support SFT only: "
+                    "GRPO rollout generation must use the same insertion policy as "
+                    "teacher-forced logprob recomputation."
+                )
 
         if train_trigger:
             if str(run.train_trigger_method) != "grpo" or dataset.mode != "grpo":

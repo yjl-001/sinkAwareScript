@@ -14,6 +14,12 @@ model:
     prompt_latents_len: 8
     inference_latents_len: 8
 
+    # Weaver 训练期 inference latent 插点策略；prompt 边界始终固定插入一次。
+    insertion_strategy:
+      name: first_k  # first_k, candidate_sink_threshold, sequence_sink_threshold
+      sink_score_threshold: 0.3  # 仅 sink 策略使用，正式训练前应按数据集校准
+      sink_score_layer_window: 4  # 0 表示平均所有层，否则平均最后 N 层
+
     lora_config:
       r: 16
       lora_alpha: 32

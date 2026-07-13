@@ -37,6 +37,14 @@ TRAIN_METHOD="grpo"    # options: sft or grpo
 # - For triviaqa:             MAX_PROMPT_AUG_NUM=6, MAX_INFERENCE_AUG_NUM=0
 PROMPT_LATENTS_LEN=${PROMPT_LATENTS_LEN:-8}
 INFERENCE_LATENTS_LEN=${INFERENCE_LATENTS_LEN:-8}
+# first_k / candidate_sink_threshold / sequence_sink_threshold
+WEAVER_INSERTION_STRATEGY=${WEAVER_INSERTION_STRATEGY:-first_k}
+WEAVER_SINK_SCORE_THRESHOLD=${WEAVER_SINK_SCORE_THRESHOLD:-0.3}
+WEAVER_SINK_SCORE_LAYER_WINDOW=${WEAVER_SINK_SCORE_LAYER_WINDOW:-4}
+if [ "${WEAVER_INSERTION_STRATEGY}" != "first_k" ]; then
+    echo "[weaver-grpo] error: sink-aware insertion currently supports Weaver SFT only" >&2
+    exit 1
+fi
 
 GRPO_BATCH_SIZE=${GRPO_BATCH_SIZE:-${GROUP_SIZE:-8}}
 NUM_GENERATIONS=${NUM_GENERATIONS:-${GROUP_SIZE:-8}}
@@ -63,6 +71,9 @@ run_accelerate \
     model.weaver.model_name ${WEAVER_MODEL} \
     model.weaver.prompt_latents_len ${PROMPT_LATENTS_LEN} \
     model.weaver.inference_latents_len ${INFERENCE_LATENTS_LEN} \
+    model.weaver.insertion_strategy.name ${WEAVER_INSERTION_STRATEGY} \
+    model.weaver.insertion_strategy.sink_score_threshold ${WEAVER_SINK_SCORE_THRESHOLD} \
+    model.weaver.insertion_strategy.sink_score_layer_window ${WEAVER_SINK_SCORE_LAYER_WINDOW} \
     model.trigger.model_name ${TRIGGER_MODEL} \
     model.trigger.active False \
     dataset.mode ${TRAIN_METHOD} \
