@@ -20,6 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-config", default=DEFAULT_RUN_CONFIG)
     parser.add_argument("--experiment-config", default=None)
     parser.add_argument("--viz-config", default=None)
+    parser.add_argument("--trigger-trace-config", default=None)
     parser.add_argument("--output-dir", default=None)
     parser.add_argument("--load-model-path", default=None)
     parser.add_argument("--limit", type=int, default=None)
@@ -31,7 +32,12 @@ def parse_args() -> argparse.Namespace:
 
     run_config = load_yaml(cli.run_config)
     viz_path = cli.viz_config or run_config.get("viz_config")
-    merged = OmegaConf.merge(run_config, load_yaml(viz_path) if viz_path else {})
+    trigger_trace_path = cli.trigger_trace_config or run_config.get("trigger_trace_config")
+    merged = OmegaConf.merge(
+        run_config,
+        load_yaml(viz_path) if viz_path else {},
+        load_yaml(trigger_trace_path) if trigger_trace_path else {},
+    )
 
     for key in ["experiment_config", "output_dir", "load_model_path", "limit", "start_index", "overwrite"]:
         value = getattr(cli, key)
@@ -45,6 +51,7 @@ def parse_args() -> argparse.Namespace:
     args = argparse.Namespace(**OmegaConf.to_container(merged, resolve=True))
     args.run_config = cli.run_config
     args.viz_config = viz_path
+    args.trigger_trace_config = trigger_trace_path
     args.device = resolve_device(getattr(args, "device", "auto"))
     return args
 

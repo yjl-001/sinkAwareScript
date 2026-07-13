@@ -105,4 +105,4 @@ def format_sample_matrix(matrix: dict[str, dict[int, float]]) -> list[str]:
 
 
 if __name__ == "__main__":
-    main()
+    main() 

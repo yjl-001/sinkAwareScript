@@ -26,8 +26,10 @@ The root Python files are compatibility wrappers. Implementation lives under
 Config files live under `configs/`:
 
 - `run_kodcode_default.yaml`: main run/model/generation/evaluation settings.
+- `run_kodcode_trigger_trace.yaml`: trained-Trigger online insertion heatmap run.
 - `first_key_sink_three_groups.yaml`: prompt augmentation and group selectors.
 - `viz_default.yaml`: heatmap and sink-event visualization settings.
+- `trigger_trace_default.yaml`: Trigger decision and trace-visualization settings.
 
 ## What It Runs
 
@@ -84,6 +86,86 @@ python sinkAwareScript/MVP/run_kodcode_sink_mvp.py \
 
 Use a small `--limit` first. The counterfactual branches are expensive because
 each selected point can trigger an additional generation.
+
+## Trained Trigger Insertion Heatmaps
+
+The `trigger_trace` workflow audits where a trained Trigger actually inserts
+memory during an online rollout. It does not compute SinkMass, SinkMassZ,
+thresholds, rankings, or correlation metrics. Its primary artifacts are
+pre-insertion attention heatmaps.
+
+Run it with the final Trigger checkpoint:
+
+```bash
+conda activate memgen
+python sinkAwareScript/MVP/run_kodcode_sink_mvp.py \
+  --run-config sinkAwareScript/MVP/configs/run_kodcode_trigger_trace.yaml \
+  --load-model-path /path/to/trained-trigger/model \
+  --output-dir output/sink_aware_mvp/kodcode_trigger_trace_debug \
+  --limit 20 \
+  --overwrite
+```
+
+The run config selects `workflow: trigger_trace`; behavior and image limits are
+kept in `configs/trigger_trace_default.yaml`. The default policy audit uses:
+
+```yaml
+trigger_trace:
+  trigger_active: true
+  trigger_do_sample: false
+  trigger_temperature: 1.0
+  save_prompt_heatmap: false
+  save_inserted_heatmaps: true
+  save_not_inserted_heatmaps: false
+  max_inserted_heatmaps_per_sample: 0
+  heatmap_layer_window: 4
+  save_contact_sheet: true
+```
+
+Temporary overrides remain available through `--set`, for example:
+
+```bash
+--set trigger_trace.save_not_inserted_heatmaps=true \
+      trigger_trace.max_not_inserted_heatmaps_per_sample=3
+```
+
+At each real Trigger candidate, the workflow first obtains the Trigger action.
+For points selected for visualization, it then captures the reasoner's
+attention before applying the new latent insertion. This preserves the causal
+order needed to inspect whether the location already exhibits a first-token
+attention sink.
+
+Each heatmap uses the existing MVP visual definition:
+
+- rows are real model layer indices;
+- columns are key token positions;
+- each cell averages the current query's attention over all heads;
+- front and tail key windows use a white `...` gap;
+- all images share the fixed `[0, 1]` color range.
+
+The title adds the online decision metadata: generation step, relative
+position, current token/delimiter, `P(augment)`, insert/skip action, insertion
+rank, final reward, and checkpoint label. A red box marks the first valid key,
+a cyan dashed line marks the end of the prompt, and latent-token labels are
+colored orange.
+
+Outputs are written as:
+
+```text
+<output-dir>/
+├── trigger_trace_rows.jsonl
+├── trigger_trace_samples.jsonl
+└── trigger_trace_heatmaps/
+    └── sample_XXXX/
+        ├── prompt/
+        ├── inference_inserted/
+        ├── inference_not_inserted_control/
+        └── inference_insertions_contact_sheet.png
+```
+
+`trigger_trace_rows.jsonl` is only an image/decision manifest. It contains no
+derived sink score. Prompt and inference decisions are kept separate so the
+special step-0 decision is not mixed with delimiter-triggered insertions.
 
 For the three-group comparison, keep `max_candidates_per_sample: 0` in
 `configs/run_kodcode_default.yaml`. A positive value is only for debugging and
@@ -147,6 +229,10 @@ The output directory contains:
   `counterfactual_groups_by_reference`.
 - `sink_events.jsonl`: optional, one row per strong sink event when
   `save_sink_event_heatmaps` is enabled.
+- `trigger_trace_rows.jsonl`: Trigger candidate actions and paths to optional
+  pre-insertion heatmaps; no SinkMass-derived fields.
+- `trigger_trace_samples.jsonl`: sample reward, completion, actual insertion
+  counts, and contact-sheet path for the `trigger_trace` workflow.
 
 ## Interpretation
 

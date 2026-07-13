@@ -1,0 +1,19 @@
+# 训练后 Trigger 的在线插入位置可视化。只生成 attention heatmap，
+# 不计算 SinkMass、阈值、排名或相关性统计。
+trigger_trace:
+  trigger_active: true
+  trigger_do_sample: false
+  trigger_temperature: 1.0
+  checkpoint_label: trained_trigger
+
+  # prompt augmentation 与 delimiter 后的 inference augmentation 分目录保存。
+  save_prompt_heatmap: false
+  save_inserted_heatmaps: true
+  save_not_inserted_heatmaps: false
+  max_inserted_heatmaps_per_sample: 0
+  max_not_inserted_heatmaps_per_sample: 5
+
+  # 与当前 MVP candidate heatmap 一致：按 head 平均，行保留真实 layer id。
+  heatmap_layer_window: 4
+  save_contact_sheet: true
+  contact_sheet_columns: 2

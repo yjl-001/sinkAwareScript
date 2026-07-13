@@ -1,0 +1,28 @@
+# 训练后 Trigger 真实在线插入位置的 attention heatmap 审计。
+cfg_path: configs/latent_memory/kodcode.yaml
+workflow: trigger_trace
+viz_config: sinkAwareScript/MVP/configs/viz_default.yaml
+trigger_trace_config: sinkAwareScript/MVP/configs/trigger_trace_default.yaml
+
+load_model_path: null
+output_dir: output/sink_aware_mvp/kodcode_trigger_trace
+split: test
+limit: 20
+start_index: 0
+seed: 42
+device: auto
+torch_dtype: bfloat16
+attn_implementation: eager
+
+max_new_tokens: 256
+budget: 5
+temperature: 0.0
+do_sample: false
+overwrite: false
+
+# 复用热力图的 front/tail 可见窗口。
+heatmap_front_key_count: 32
+heatmap_tail_key_count: 160
+
+# 传给 MemGen 原始 config 的 OmegaConf dotlist 覆盖项。
+options: null

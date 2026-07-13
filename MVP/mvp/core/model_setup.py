@@ -28,6 +28,11 @@ def load_model(config, args) -> MemGenModel:
     model_name = model_cfg["model_name"]
     weaver_cfg = model_cfg.get("weaver", {})
     trigger_cfg = model_cfg.get("trigger", {})
+    trigger_trace_cfg = getattr(args, "trigger_trace", {}) or {}
+    trigger_trace_active = (
+        getattr(args, "workflow", "candidate") == "trigger_trace"
+        and bool(trigger_trace_cfg.get("trigger_active", False))
+    )
     dtype = torch_dtype(args.torch_dtype)
 
     # MemGenConfig 继承底座模型 config，同时额外挂上 latent 长度、
@@ -39,7 +44,7 @@ def load_model(config, args) -> MemGenModel:
         prompt_latents_len=weaver_cfg.get("prompt_latents_len", 8),
         inference_latents_len=weaver_cfg.get("inference_latents_len", 8),
         weaver_lora_config=weaver_cfg.get("lora_config"),
-        trigger_active=False,
+        trigger_active=trigger_trace_active,
         trigger_lora_config=trigger_cfg.get("lora_config"),
     )
 

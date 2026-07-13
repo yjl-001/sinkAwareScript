@@ -124,3 +124,39 @@ class GenerationTrace:
     candidates: list[CandidateRecord]
     sequence_points: list[SequencePointRecord]
     forced_steps_used: list[int]
+
+
+@dataclass
+class TriggerTracePointRecord:
+    """训练后 Trigger 在一个真实候选位置上的决策与可视化索引。"""
+
+    sample_idx: int
+    point_rank: int
+    step: int
+    point_type: str
+    generated_so_far: int
+    total_generated_len: int
+    rel_pos: float
+    current_token_id: int
+    current_token_text: str
+    delimiter_text: str
+    trigger_probability: float
+    trigger_action: int
+    actual_inserted: bool
+    inference_insert_rank: int | None
+    checkpoint_label: str
+    reward: float | None = None
+    image_path: str | None = None
+
+
+@dataclass
+class TriggerTraceSampleRecord:
+    """单条 Trigger 在线轨迹的样本级索引。"""
+
+    sample_idx: int
+    reward: float
+    generated_len: int
+    prompt_inserted: bool
+    inference_inserted_count: int
+    completion: str
+    contact_sheet_path: str | None = None
