@@ -18,6 +18,7 @@ from mvp.experiment.counterfactual_eval import evaluate_counterfactual_groups
 from mvp.experiment.experiment_summary import summarize_experiment
 from mvp.io.outputs import append_strategy_csv, write_dataclass_jsonl, write_summary
 from mvp.metrics.trigger_sink_comparison import summarize_trigger_sink_scores
+from mvp.viz.trigger_probability_sink_viz import save_trigger_probability_sink_plot
 from mvp.viz.trigger_sink_comparison_viz import save_trigger_sink_comparison
 from mvp.viz.trigger_trace_viz import save_trigger_trace_visuals
 
@@ -42,6 +43,7 @@ def prepare_output_paths(output_dir: Path) -> dict[str, Path]:
         "trigger_samples": output_dir / "trigger_trace_samples.jsonl",
         "trigger_sink_summary": output_dir / "trigger_sink_score_summary.json",
         "trigger_sink_figure": output_dir / "trigger_sink_score_comparison.png",
+        "trigger_probability_sink_figure": output_dir / "trigger_probability_vs_sink_score.png",
     }
 
 
@@ -217,6 +219,12 @@ def run_trigger_trace(model, dataset, sample_indices: list[int], paths: dict[str
                 all_points,
                 sink_summary,
                 paths["trigger_sink_figure"],
+            )
+        if bool(trace_config.get("save_probability_sink_plot", True)):
+            save_trigger_probability_sink_plot(
+                all_points,
+                sink_summary,
+                paths["trigger_probability_sink_figure"],
             )
         LOGGER.info("Trigger sink score comparison: %s", sink_summary["difference"])
 if __name__ == "__main__":

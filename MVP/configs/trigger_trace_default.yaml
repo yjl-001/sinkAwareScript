@@ -11,6 +11,7 @@ trigger_trace:
   collect_candidate_sink_scores: true
   sink_score_layer_window: 4
   save_sink_score_comparison_plot: true
+  save_probability_sink_plot: true
 
   # prompt augmentation 与 delimiter 后的 inference augmentation 分目录保存。
   save_prompt_heatmap: false

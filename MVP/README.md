@@ -117,6 +117,7 @@ trigger_trace:
   collect_candidate_sink_scores: true
   sink_score_layer_window: 4
   save_sink_score_comparison_plot: true
+  save_probability_sink_plot: true
   save_prompt_heatmap: false
   save_inserted_heatmaps: true
   save_not_inserted_heatmaps: false
@@ -161,6 +162,7 @@ Outputs are written as:
 ├── trigger_trace_samples.jsonl
 ├── trigger_sink_score_summary.json
 ├── trigger_sink_score_comparison.png
+├── trigger_probability_vs_sink_score.png
 └── trigger_trace_heatmaps/
     └── sample_XXXX/
         ├── prompt/
@@ -180,6 +182,21 @@ differences. It also reports a sample-paired mean difference for samples that
 contain both actions. `trigger_sink_score_comparison.png` shows the two score
 distributions and score versus relative generation position, because raw
 first-key attention can be confounded by context length.
+
+`trigger_probability_vs_sink_score.png` plots candidate-level `P(augment)`
+against `first_key_attention`, marks the `0.5` decision line, and shows a
+linear trend. Its second panel uses equal-count sink-score bins to compare mean
+Trigger probability with the actual insertion rate. The JSON summary includes
+pooled Pearson/Spearman correlations and a within-sample centered Pearson
+correlation.
+
+To regenerate these statistics and figures from an existing completed trace
+without loading the model or rerunning generation:
+
+```bash
+python sinkAwareScript/MVP/analyze_trigger_trace.py \
+  --output-dir output/sink_aware_mvp/kodcode_trigger_trace
+```
 
 For the three-group comparison, keep `max_candidates_per_sample: 0` in
 `configs/run_kodcode_default.yaml`. A positive value is only for debugging and
