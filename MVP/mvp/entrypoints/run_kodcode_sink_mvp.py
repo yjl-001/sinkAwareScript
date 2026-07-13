@@ -17,6 +17,8 @@ from mvp.experiment.candidate_experiment import run_reference, run_strategy_roll
 from mvp.experiment.counterfactual_eval import evaluate_counterfactual_groups
 from mvp.experiment.experiment_summary import summarize_experiment
 from mvp.io.outputs import append_strategy_csv, write_dataclass_jsonl, write_summary
+from mvp.metrics.trigger_sink_comparison import summarize_trigger_sink_scores
+from mvp.viz.trigger_sink_comparison_viz import save_trigger_sink_comparison
 from mvp.viz.trigger_trace_viz import save_trigger_trace_visuals
 
 
@@ -38,6 +40,8 @@ def prepare_output_paths(output_dir: Path) -> dict[str, Path]:
         "sink_events": output_dir / "sink_events.jsonl",
         "trigger_trace": output_dir / "trigger_trace_rows.jsonl",
         "trigger_samples": output_dir / "trigger_trace_samples.jsonl",
+        "trigger_sink_summary": output_dir / "trigger_sink_score_summary.json",
+        "trigger_sink_figure": output_dir / "trigger_sink_score_comparison.png",
     }
 
 
@@ -152,12 +156,15 @@ def validate_workflow_args(workflow: str, args) -> None:
         raise ValueError("trigger_trace.trigger_temperature must be non-negative")
     if int(trace_config.get("heatmap_layer_window", 4)) < 0:
         raise ValueError("trigger_trace.heatmap_layer_window must be >= 0")
+    if int(trace_config.get("sink_score_layer_window", 4)) < 0:
+        raise ValueError("trigger_trace.sink_score_layer_window must be >= 0")
 
 
 def run_trigger_trace(model, dataset, sample_indices: list[int], paths: dict[str, Path], args) -> None:
     """运行训练后 Trigger 的在线轨迹，并保存插入前 attention heatmap。"""
 
     trace_config = getattr(args, "trigger_trace", {}) or {}
+    all_points = []
     for local_idx, sample_idx in enumerate(sample_indices, start=1):
         sample = dataset[sample_idx]
         LOGGER.info("Trigger trace %s/%s: dataset index %s", local_idx, len(sample_indices), sample_idx)
@@ -190,6 +197,10 @@ def run_trigger_trace(model, dataset, sample_indices: list[int], paths: dict[str
         )
         write_dataclass_jsonl(paths["trigger_trace"], trace.points)
         write_dataclass_jsonl(paths["trigger_samples"], [sample_record])
+        all_points.extend(trace.points)
+        if bool(trace_config.get("collect_candidate_sink_scores", True)):
+            sink_summary = summarize_trigger_sink_scores(all_points)
+            write_summary(paths["trigger_sink_summary"], sink_summary)
         LOGGER.info(
             "Trigger trace sample=%s reward=%.4f prompt_inserted=%s inference_insertions=%s heatmaps=%s",
             sample_idx,
@@ -198,5 +209,15 @@ def run_trigger_trace(model, dataset, sample_indices: list[int], paths: dict[str
             trace.inference_inserted_count,
             len(trace.snapshots),
         )
+
+    if bool(trace_config.get("collect_candidate_sink_scores", True)):
+        sink_summary = summarize_trigger_sink_scores(all_points)
+        if bool(trace_config.get("save_sink_score_comparison_plot", True)):
+            save_trigger_sink_comparison(
+                all_points,
+                sink_summary,
+                paths["trigger_sink_figure"],
+            )
+        LOGGER.info("Trigger sink score comparison: %s", sink_summary["difference"])
 if __name__ == "__main__":
     main()

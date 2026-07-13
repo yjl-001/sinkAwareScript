@@ -145,6 +145,10 @@ class TriggerTracePointRecord:
     actual_inserted: bool
     inference_insert_rank: int | None
     checkpoint_label: str
+    # Trigger 决策前，当前 query 对第一个有效 key 的平均 attention。
+    # 这是本 workflow 唯一使用的 sink score；不计算 sink_mass。
+    first_key_attention: float | None = None
+    sink_score_layer_window: int | None = None
     reward: float | None = None
     image_path: str | None = None
 

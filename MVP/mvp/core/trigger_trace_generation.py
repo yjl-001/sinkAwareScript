@@ -5,6 +5,7 @@ import torch
 from mvp.core.generation import insert_latent
 from mvp.core.model_setup import decode_completion
 from mvp.core.records import TriggerTracePointRecord
+from mvp.metrics.sink_metrics import first_key_attention_score
 from mvp.viz.trigger_trace_viz import TriggerHeatmapSnapshot, capture_trigger_heatmap_snapshot
 
 
@@ -67,7 +68,8 @@ def generate_with_trigger_trace(model, prompt_ids, prompt_mask, *, sample_idx: i
             capture, inserted_snapshot_count, skipped_snapshot_count = should_capture_snapshot(
                 point, trace_config, inserted_snapshot_count, skipped_snapshot_count
             )
-            if capture:
+            collect_sink_score = bool(trace_config.get("collect_candidate_sink_scores", True))
+            if capture or collect_sink_score:
                 diagnostic_outputs = reasoner_forward(
                     reasoner,
                     current_inputs_embeds,
@@ -76,6 +78,22 @@ def generate_with_trigger_trace(model, prompt_ids, prompt_mask, *, sample_idx: i
                     current_cache,
                     output_attentions=True,
                 )
+
+            if collect_sink_score:
+                layer_window = int(
+                    trace_config.get(
+                        "sink_score_layer_window",
+                        trace_config.get("heatmap_layer_window", 4),
+                    )
+                )
+                point.first_key_attention = first_key_attention_score(
+                    diagnostic_outputs.attentions,
+                    current_attention_mask,
+                    layer_window,
+                )
+                point.sink_score_layer_window = layer_window
+
+            if capture:
                 snapshots.append(
                     capture_trigger_heatmap_snapshot(
                         diagnostic_outputs,

@@ -108,11 +108,14 @@ def save_trigger_heatmap(snapshot: TriggerHeatmapSnapshot, path: Path) -> None:
     action_text = "INSERT" if point.actual_inserted else "NO_INSERT"
     insert_rank = "-" if point.inference_insert_rank is None else str(point.inference_insert_rank)
     reward_text = "?" if point.reward is None else f"{point.reward:.4f}"
+    sink_text = "?" if point.first_key_attention is None else f"{point.first_key_attention:.6f}"
+    layer_window = "?" if point.sink_score_layer_window is None else str(point.sink_score_layer_window)
     ax.set_title(
         f"PRE-INSERTION ATTENTION | sample={point.sample_idx} step={point.step} "
         f"rel_pos={point.rel_pos:.3f} type={point.point_type}\n"
         f"trigger={action_text} p(augment)={point.trigger_probability:.4f} "
         f"inference_insert={insert_rank} reward={reward_text} checkpoint={point.checkpoint_label}\n"
+        f"first_key_attention(last{layer_window})={sink_text} | "
         f"current_token={point.current_token_text!r} delimiter={point.delimiter_text!r}"
     )
     ax.set_xlabel("key token position (red box = first valid key; cyan line = prompt end)")

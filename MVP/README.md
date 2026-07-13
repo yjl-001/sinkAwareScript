@@ -90,9 +90,9 @@ each selected point can trigger an additional generation.
 ## Trained Trigger Insertion Heatmaps
 
 The `trigger_trace` workflow audits where a trained Trigger actually inserts
-memory during an online rollout. It does not compute SinkMass, SinkMassZ,
-thresholds, rankings, or correlation metrics. Its primary artifacts are
-pre-insertion attention heatmaps.
+memory during an online rollout. Its primary artifacts remain pre-insertion
+attention heatmaps. It does not compute SinkMass, SinkMassZ, thresholds, or
+rankings; the optional candidate comparison uses only `first_key_attention`.
 
 Run it with the final Trigger checkpoint:
 
@@ -114,6 +114,9 @@ trigger_trace:
   trigger_active: true
   trigger_do_sample: false
   trigger_temperature: 1.0
+  collect_candidate_sink_scores: true
+  sink_score_layer_window: 4
+  save_sink_score_comparison_plot: true
   save_prompt_heatmap: false
   save_inserted_heatmaps: true
   save_not_inserted_heatmaps: false
@@ -130,10 +133,11 @@ Temporary overrides remain available through `--set`, for example:
 ```
 
 At each real Trigger candidate, the workflow first obtains the Trigger action.
-For points selected for visualization, it then captures the reasoner's
-attention before applying the new latent insertion. This preserves the causal
-order needed to inspect whether the location already exhibits a first-token
-attention sink.
+When candidate sink-score collection is enabled, it captures the reasoner's
+attention before applying the new latent insertion and computes the current
+query's mean attention to the first valid key over the configured layer window.
+Heatmap image limits affect only saved images, not which candidates enter the
+inserted-versus-not-inserted statistics.
 
 Each heatmap uses the existing MVP visual definition:
 
@@ -155,6 +159,8 @@ Outputs are written as:
 <output-dir>/
 ├── trigger_trace_rows.jsonl
 ├── trigger_trace_samples.jsonl
+├── trigger_sink_score_summary.json
+├── trigger_sink_score_comparison.png
 └── trigger_trace_heatmaps/
     └── sample_XXXX/
         ├── prompt/
@@ -163,9 +169,17 @@ Outputs are written as:
         └── inference_insertions_contact_sheet.png
 ```
 
-`trigger_trace_rows.jsonl` is only an image/decision manifest. It contains no
-derived sink score. Prompt and inference decisions are kept separate so the
-special step-0 decision is not mixed with delimiter-triggered insertions.
+`trigger_trace_rows.jsonl` records each decision and its pre-insertion
+`first_key_attention`; it never contains `sink_mass`. The summary compares only
+inference delimiter candidates that were actually evaluated by Trigger while
+the insertion budget was still available. Prompt candidates are excluded.
+
+`trigger_sink_score_summary.json` reports pooled count, mean, median, standard
+deviation, relative-position statistics, and inserted-minus-not-inserted
+differences. It also reports a sample-paired mean difference for samples that
+contain both actions. `trigger_sink_score_comparison.png` shows the two score
+distributions and score versus relative generation position, because raw
+first-key attention can be confounded by context length.
 
 For the three-group comparison, keep `max_candidates_per_sample: 0` in
 `configs/run_kodcode_default.yaml`. A positive value is only for debugging and
