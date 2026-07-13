@@ -32,6 +32,7 @@ def generate_with_trigger_trace(model, prompt_ids, prompt_mask, *, sample_idx: i
     current_input_ids = prompt_ids
     current_inputs_embeds = reasoner.get_input_embeddings()(prompt_ids)
     current_attention_mask = prompt_mask
+    current_token_attention_mask = prompt_mask
     current_position_ids = model._generate_position_ids(current_attention_mask)
     current_cache = None
     key_labels = initial_key_labels(model, prompt_ids, prompt_mask)
@@ -46,7 +47,12 @@ def generate_with_trigger_trace(model, prompt_ids, prompt_mask, *, sample_idx: i
     for step in range(args.max_new_tokens):
         prefix_ends_with_delimiter = bool(
             step > 0
-            and model._check_ends_with_delimiter(current_input_ids, tokenizer, model.delimiters).item()
+            and model._check_ends_with_delimiter(
+                current_input_ids,
+                tokenizer,
+                model.delimiters,
+                attention_mask=current_token_attention_mask,
+            ).item()
         )
         is_prompt = step == 0
         is_inference_candidate = (
@@ -56,7 +62,12 @@ def generate_with_trigger_trace(model, prompt_ids, prompt_mask, *, sample_idx: i
 
         diagnostic_outputs = None
         if is_candidate:
-            action, probability = trigger_action_and_probability(model, current_input_ids, trace_config)
+            action, probability = trigger_action_and_probability(
+                model,
+                current_input_ids,
+                current_token_attention_mask,
+                trace_config,
+            )
             will_insert = action == 1
             insert_rank = inference_insert_count + 1 if will_insert and not is_prompt else None
             point = build_point(
@@ -145,6 +156,17 @@ def generate_with_trigger_trace(model, prompt_ids, prompt_mask, *, sample_idx: i
             temperature=args.temperature,
         )
         current_cache = outputs.past_key_values
+        current_token_attention_mask = torch.cat(
+            [
+                current_token_attention_mask,
+                torch.ones(
+                    (1, 1),
+                    dtype=current_token_attention_mask.dtype,
+                    device=current_token_attention_mask.device,
+                ),
+            ],
+            dim=1,
+        )
         key_labels.append(token_label(model, int(current_input_ids[0, -1].item())))
         if int(current_input_ids[0, -1].item()) == tokenizer.eos_token_id:
             break
@@ -183,8 +205,11 @@ def reasoner_forward(reasoner, inputs_embeds, attention_mask, position_ids, cach
     )
 
 
-def trigger_action_and_probability(model, input_ids, trace_config) -> tuple[int, float]:
-    attention_mask = (input_ids != model.tokenizer.pad_token_id).long()
+def trigger_action_and_probability(model, input_ids, attention_mask, trace_config) -> tuple[int, float]:
+    """使用与在线 generate 相同的 token-only attention mask 计算 Trigger。"""
+
+    if attention_mask.shape != input_ids.shape:
+        raise ValueError("Trigger trace token attention mask must match input_ids")
     position_ids = model._generate_position_ids(attention_mask)
     logits = model.trigger(
         input_ids=input_ids,

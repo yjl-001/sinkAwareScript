@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the KodCode sink-aware latent-memory MVP."""
+"""Run the reusable sink-aware latent-memory experiment workflow."""
 
 from pathlib import Path
 import logging
@@ -80,7 +80,7 @@ def main() -> None:
         config.model.max_prompt_aug_num = experiment.max_prompt_aug_num
     config.model.max_inference_aug_num = args.budget
 
-    LOGGER.info("Loading KodCode dataset...")
+    LOGGER.info("Loading %s dataset...", config.dataset.name)
     dataset = build_dataset(config, args.split)
     end = min(args.start_index + args.limit, len(dataset))
     sample_indices = list(range(args.start_index, end))

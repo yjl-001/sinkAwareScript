@@ -1,4 +1,4 @@
-# Sink-aware MVP for KodCode
+# Reusable Sink-Aware Experiments
 
 This directory contains a narrow validation script for the question:
 
@@ -7,8 +7,8 @@ Does first-token sink attention identify useful latent-memory insertion points,
 compared with the first-K delimiter baseline?
 ```
 
-The script is intentionally standalone. It does not modify the MemGen training or
-generation code paths.
+The experiment package is separate from the training path, but imports `data/` and
+`memgen/` from this same repository. It no longer depends on a parent MemGen checkout.
 
 ## Module Layout
 
@@ -33,7 +33,7 @@ Config files live under `configs/`:
 
 ## What It Runs
 
-For each KodCode sample, the script:
+For each sample from a supported static dataset, the script:
 
 1. Loads a MemGen model and a Weaver checkpoint.
 2. Reads the experiment config to decide the reference mode:
@@ -54,11 +54,11 @@ The default config compares:
 ```text
 candidate_first_k
 candidate_first_key_sink_top5
-sequence_first_key_sink_threshold_0_5
+sequence_first_key_sink_top5
 ```
 
-The third group may insert at non-delimiter positions. If it selects no point
-for a sample, that sample contributes `avg_utility=0` for the group.
+The third group may insert at non-delimiter positions, but keeps the same
+five-point budget as the two candidate groups.
 
 6. Optionally runs exploratory budget-matched strategy rollouts with
    `--run-strategy-rollouts`:
@@ -75,11 +75,11 @@ sink_entropy_top_b
 
 ```bash
 conda activate memgen
-python sinkAwareScript/MVP/run_kodcode_sink_mvp.py \
-  --run-config sinkAwareScript/MVP/configs/run_kodcode_default.yaml \
-  --load-model-path MemGen/Qwen2.5-1.5B-Instruct/kodcode/weaver-sft/pn=1_pl=4_in=5_il=4/model \
+python MVP/run_sink_experiment.py \
+  --run-config MVP/configs/run_kodcode_default.yaml \
+  --load-model-path /path/to/weaver-checkpoint/model \
   --output-dir output/sink_aware_mvp/kodcode_debug \
-  --experiment-config sinkAwareScript/MVP/configs/first_key_sink_three_groups.yaml \
+  --experiment-config MVP/configs/first_key_sink_three_groups.yaml \
   --limit 20 \
   --overwrite
 ```
@@ -98,8 +98,8 @@ Run it with the final Trigger checkpoint:
 
 ```bash
 conda activate memgen
-python sinkAwareScript/MVP/run_kodcode_sink_mvp.py \
-  --run-config sinkAwareScript/MVP/configs/run_kodcode_trigger_trace.yaml \
+python MVP/run_sink_experiment.py \
+  --run-config MVP/configs/run_kodcode_trigger_trace.yaml \
   --load-model-path /path/to/trained-trigger/model \
   --output-dir output/sink_aware_mvp/kodcode_trigger_trace_debug \
   --limit 20 \
@@ -194,7 +194,7 @@ To regenerate these statistics and figures from an existing completed trace
 without loading the model or rerunning generation:
 
 ```bash
-python sinkAwareScript/MVP/analyze_trigger_trace.py \
+python MVP/analyze_trigger_trace.py \
   --output-dir output/sink_aware_mvp/kodcode_trigger_trace
 ```
 
@@ -271,11 +271,12 @@ The first-key sink hypothesis is supported if:
 
 ```text
 avg_utility(candidate_first_key_sink_top5) > avg_utility(candidate_first_k)
-avg_utility(sequence_first_key_sink_threshold_0_5) > avg_utility(candidate_first_k)
+avg_utility(sequence_first_key_sink_top5) > avg_utility(candidate_first_k)
 ```
 
-Also inspect `selected_count_mean` and `inserted_count_mean`, because the
-threshold group does not have a fixed budget.
+Also inspect `selected_count_mean` and `inserted_count_mean`; a selected point
+can still be skipped when a delimiter-constrained branch no longer matches its
+reference trajectory.
 
 Strategy reward is exploratory in this MVP. Do not use it as the main claim
 until true online policies are implemented.
@@ -288,7 +289,7 @@ until true online policies are implemented.
 After an experiment finishes:
 
 ```bash
-python sinkAwareScript/MVP/visualize_results.py \
+python MVP/visualize_results.py \
   --output-dir output/sink_aware_mvp/qwen2_5_kodcode_sft_posfix_limit20
 ```
 
@@ -297,7 +298,7 @@ This writes PNG figures and `report.md` under `<output-dir>/figures/`.
 To inspect which selected points each group actually used:
 
 ```bash
-python sinkAwareScript/MVP/analyze_selected_points.py \
+python MVP/analyze_selected_points.py \
   --output-dir output/sink_aware_mvp/qwen2_5_kodcode_sft_posfix_limit20
 ```
 

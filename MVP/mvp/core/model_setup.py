@@ -1,10 +1,12 @@
 import logging
+from pathlib import Path
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from mvp.config.cli import torch_dtype, to_plain_dict
 from mvp.core import repo_paths  # noqa: F401
 from data import get_data_builder
+from data.gsm8k.env import GSM8KEnv
 from data.kodcode.env import KodCodeEnv
 from memgen.model.configuration_memgen import MemGenConfig
 from memgen.model.modeling_memgen import MemGenModel
@@ -35,18 +37,34 @@ def load_model(config, args) -> MemGenModel:
     )
     dtype = torch_dtype(args.torch_dtype)
 
-    # MemGenConfig 继承底座模型 config，同时额外挂上 latent 长度、
-    # LoRA 配置和 augmentation budget。
-    memgen_config = MemGenConfig.from_pretrained(
-        model_name,
-        max_prompt_aug_num=model_cfg.get("max_prompt_aug_num", 1),
-        max_inference_aug_num=model_cfg.get("max_inference_aug_num", args.budget),
-        prompt_latents_len=weaver_cfg.get("prompt_latents_len", 8),
-        inference_latents_len=weaver_cfg.get("inference_latents_len", 8),
-        weaver_lora_config=weaver_cfg.get("lora_config"),
-        trigger_active=trigger_trace_active,
-        trigger_lora_config=trigger_cfg.get("lora_config"),
-    )
+    load_model_path = model_cfg.get("load_model_path")
+    if load_model_path:
+        # latent 数量决定 checkpoint 张量形状，必须以 checkpoint 自己保存的
+        # config.json 为准。运行 YAML 只覆盖插入预算和 Trigger 是否启用。
+        config_path = Path(load_model_path) / "config.json"
+        if not config_path.is_file():
+            raise FileNotFoundError(f"MemGen checkpoint is missing config.json: {config_path}")
+        memgen_config = MemGenConfig.from_pretrained(load_model_path)
+        memgen_config.max_prompt_aug_num = model_cfg.get("max_prompt_aug_num", 1)
+        memgen_config.max_inference_aug_num = model_cfg.get("max_inference_aug_num", args.budget)
+        memgen_config.trigger_active = trigger_trace_active
+        LOGGER.info(
+            "Checkpoint latent lengths: prompt=%s inference=%s",
+            memgen_config.prompt_latents_len,
+            memgen_config.inference_latents_len,
+        )
+    else:
+        # 无 checkpoint 的调试壳才使用运行 YAML 中的 latent/LoRA 配置。
+        memgen_config = MemGenConfig.from_pretrained(
+            model_name,
+            max_prompt_aug_num=model_cfg.get("max_prompt_aug_num", 1),
+            max_inference_aug_num=model_cfg.get("max_inference_aug_num", args.budget),
+            prompt_latents_len=weaver_cfg.get("prompt_latents_len", 8),
+            inference_latents_len=weaver_cfg.get("inference_latents_len", 8),
+            weaver_lora_config=weaver_cfg.get("lora_config"),
+            trigger_active=trigger_trace_active,
+            trigger_lora_config=trigger_cfg.get("lora_config"),
+        )
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     # 三份 base model 物理独立，和主代码保持一致；区别只是 attention 实现可切换。
@@ -58,7 +76,6 @@ def load_model(config, args) -> MemGenModel:
     weaver = AutoModelForCausalLM.from_pretrained(weaver_cfg.get("model_name", model_name), **load_kwargs)
     trigger = AutoModelForCausalLM.from_pretrained(trigger_cfg.get("model_name", model_name), **load_kwargs)
 
-    load_model_path = model_cfg.get("load_model_path")
     # load_model_path 存在时恢复训练好的 projection、latent 参数和 LoRA adapter。
     if load_model_path:
         model = MemGenModel.from_pretrained(
@@ -88,20 +105,23 @@ def load_model(config, args) -> MemGenModel:
 
 
 def build_dataset(config, split: str):
-    """构造 KodCode split。
+    """按主配置构造静态数据集 split。
 
-    这里强制 name=kodcode，是为了让该脚本专注第一个 MVP 数据集；
-    后续扩展到 GSM8K/GPQA 时再抽象 dataset_name。
+    当前反事实实验依赖单轮 completion reward，因此支持 GSM8K、GPQA、KodCode；
+    TriviaQA 的多轮检索轨迹应走主 Runner 的 DynamicEnv 流程。
     """
 
     dataset_cfg = to_plain_dict(config.dataset)
-    dataset_cfg["name"] = "kodcode"
     builder = get_data_builder(dataset_cfg)
+    if builder.get_env_cls().ENV_CARD != "STATIC":
+        raise NotImplementedError(
+            f"MVP counterfactual workflow supports StaticEnv only, got: {dataset_cfg['name']}"
+        )
     return builder.get_dataset_dict()[split]
 
 
 def encode_prompt(model: MemGenModel, sample: dict, device: str):
-    """把 KodCode 的 chat-format prompt 编成左 padding token。
+    """把静态任务的 chat-format prompt 编成左 padding token。
 
     和 runner._static_evaluate 保持同样的 apply_chat_template 入口，避免
     prompt 模板漂移影响 delimiter 与 reward。
@@ -130,7 +150,15 @@ def decode_completion(model: MemGenModel, completion_ids: list[int]) -> str:
 
 
 def reward_completion(completion: str, sample: dict) -> float:
-    """复用 KodCodeEnv 的单样本代码执行 reward。"""
+    """复用主项目的静态任务 reward，不在实验脚本里复制判分逻辑。"""
 
-    reward = KodCodeEnv.compute_reward([completion], [sample["test"]], [sample["test_info"]])[0]
+    if "test" in sample and "test_info" in sample:
+        reward = KodCodeEnv.compute_reward([completion], [sample["test"]], [sample["test_info"]])[0]
+    elif "solution" in sample:
+        # GSM8K 与 GPQA 共用 math_utils.compute_score，调用任一对应 Env 即可。
+        reward = GSM8KEnv.compute_reward([completion], [sample["solution"]])[0]
+    else:
+        raise KeyError(
+            "Unsupported static sample schema: expected solution or test/test_info reward fields"
+        )
     return float(reward)

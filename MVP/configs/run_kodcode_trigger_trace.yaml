@@ -1,8 +1,8 @@
 # 训练后 Trigger 真实在线插入位置的 attention heatmap 审计。
 cfg_path: configs/latent_memory/kodcode.yaml
 workflow: trigger_trace
-viz_config: sinkAwareScript/MVP/configs/viz_default.yaml
-trigger_trace_config: sinkAwareScript/MVP/configs/trigger_trace_default.yaml
+viz_config: MVP/configs/viz_default.yaml
+trigger_trace_config: MVP/configs/trigger_trace_default.yaml
 
 load_model_path: null
 output_dir: output/sink_aware_mvp/kodcode_trigger_trace

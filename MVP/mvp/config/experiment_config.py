@@ -3,6 +3,8 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
+from mvp.core.repo_paths import resolve_project_path
+
 
 @dataclass
 class GroupConfig:
@@ -42,8 +44,8 @@ def load_experiment_config(path: str | None) -> ExperimentConfig:
     """读取 YAML 配置，并转成带类型的 dataclass。"""
 
     if not path:
-        path = "sinkAwareScript/MVP/configs/first_key_sink_three_groups.yaml"
-    data = OmegaConf.to_container(OmegaConf.load(Path(path)), resolve=True)
+        path = "MVP/configs/first_key_sink_three_groups.yaml"
+    data = OmegaConf.to_container(OmegaConf.load(resolve_project_path(path, must_exist=True)), resolve=True)
     groups = [GroupConfig(**item) for item in data.get("groups", [])]
     return ExperimentConfig(
         max_prompt_aug_num=int(data.get("max_prompt_aug_num", 1)),

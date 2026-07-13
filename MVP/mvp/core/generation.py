@@ -65,6 +65,7 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
     # current_inputs_embeds: [B=1, L_prompt, H_reasoner]
     current_inputs_embeds = reasoner.get_input_embeddings()(prompt_ids)
     current_attention_mask = prompt_mask
+    current_token_attention_mask = prompt_mask
     # current_position_ids: [B=1, L_prompt]
     current_position_ids = model._generate_position_ids(current_attention_mask)
     current_cache = None
@@ -78,7 +79,13 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
         # 如果 earlier insertion 让后续轨迹偏离 baseline，即使 forced_steps 里有该 step，
         # 这里也会跳过，避免在非边界位置插入。
         prefix_ends_with_delimiter = (
-            step > 0 and model._check_ends_with_delimiter(current_input_ids, tokenizer, model.delimiters).item()
+            step > 0
+            and model._check_ends_with_delimiter(
+                current_input_ids,
+                tokenizer,
+                model.delimiters,
+                attention_mask=current_token_attention_mask,
+            ).item()
         )
         requires_delimiter = forced_step_requires_delimiter.get(step, True)
         forced_insert = step in forced_steps and (prefix_ends_with_delimiter or not requires_delimiter)
@@ -148,6 +155,9 @@ def generate_with_forced_steps(model, prompt_ids, prompt_mask, *, sample_idx: in
         # next_mask: [B=1, 1]
         next_mask = torch.ones((1, 1), dtype=current_attention_mask.dtype, device=current_attention_mask.device)
         current_attention_mask = torch.cat([current_attention_mask, next_mask], dim=1)
+        current_token_attention_mask = torch.cat(
+            [current_token_attention_mask, next_mask], dim=1
+        )
         current_position_ids = model._generate_position_ids(current_attention_mask)
         current_cache = outputs.past_key_values
 

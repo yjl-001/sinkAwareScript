@@ -1,9 +1,9 @@
 # 主运行流程配置：数据、模型、生成、反事实评估相关参数放这里。
 cfg_path: configs/latent_memory/kodcode.yaml
 workflow: candidate
-experiment_config: sinkAwareScript/MVP/configs/first_key_sink_three_groups.yaml
-viz_config: sinkAwareScript/MVP/configs/viz_default.yaml
-trigger_trace_config: sinkAwareScript/MVP/configs/trigger_trace_default.yaml
+experiment_config: MVP/configs/first_key_sink_three_groups.yaml
+viz_config: MVP/configs/viz_default.yaml
+trigger_trace_config: MVP/configs/trigger_trace_default.yaml
 
 load_model_path: null
 output_dir: output/sink_aware_mvp/kodcode
